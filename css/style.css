@@ -98,7 +98,7 @@ h1 {
 }
 
 #current-time {
-  font-size: clamp(2.6rem, 11vw, 5.5rem);
+  font-size: clamp(1.6rem, 11vw, 5.5rem);
   font-weight: 700;
   color: #1e7b8f;
   text-align: center;
