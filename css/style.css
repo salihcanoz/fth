@@ -98,7 +98,7 @@ h1 {
 }
 
 #current-time {
-  font-size: 5.5rem;
+  font-size: clamp(2.6rem, 11vw, 5.5rem);
   font-weight: 700;
   color: #1e7b8f;
   text-align: center;
@@ -201,18 +201,18 @@ h1 {
 }
 
 .lang-nl {
-  font-size: 1.3rem;
+  font-size: clamp(1.0rem, 3.5vw, 1.3rem);
   color: #6c757d;
 }
 
 .lang-tr {
-  font-size: 1.6rem;
+  font-size: clamp(1.15rem, 4.2vw, 1.6rem);
   font-weight: 600;
   color: #495057;
 }
 
 .lang-ar {
-  font-size: 1.6rem;
+  font-size: clamp(1.15rem, 4.2vw, 1.6rem);
   font-weight: 600;
   color: #495057;
 }
@@ -226,7 +226,7 @@ h1 {
 .prayer-time {
   font-weight: 700;
   color: #1e7b8f;
-  font-size: 3.8rem;
+  font-size: clamp(2.0rem, 9vw, 3.8rem);
 }
 
 .loading, .error {
@@ -356,6 +356,7 @@ h1 {
   .container {
     width: 100vw;      /* volledige schermbreedte */
     margin: 10px;
+    padding: clamp(1rem, 4vw, 2rem);
   }
 }
 
