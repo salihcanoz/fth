@@ -117,9 +117,13 @@ function updatePrayerList() {
             const mm = totalMinutes % 60;
 
             let timerText;
-            if (totalMinutes < 5) {
+            if (totalMinutes < 1) {
+                timerText = `${secs}s`;
+            }
+            else if (totalMinutes < 10) {
                 timerText = `${mm}m ${secs}s`;
-            } else {
+            }
+            else {
                 timerText = hh > 0 ? `${hh}u ${mm}m` : `${mm}m`;
             }
 
