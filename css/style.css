@@ -58,9 +58,9 @@ body {
   border-radius: 20px;
   padding: 2rem;
   box-shadow: 0 20px 60px rgba(0, 0, 0, 0.15);
-  max-width: 500px;
   width: 95%;
   border: 2px solid rgba(30, 123, 143, 0.2);
+  position: relative;
 }
 
 .logo {
@@ -69,10 +69,6 @@ body {
   right: -.5rem;
   height: 50px;
   width: auto;
-}
-
-.container {
-  position: relative;
 }
 
 h1 {
@@ -355,3 +351,16 @@ h1 {
   }
 }
 
+
+@media (orientation: portrait) {
+  .container {
+    width: 100vw;      /* volledige schermbreedte */
+    margin: 10px;
+  }
+}
+
+@media (orientation: landscape) {
+  .container {
+    max-width: 500px;
+  }
+}
