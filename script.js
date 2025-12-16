@@ -91,7 +91,6 @@ function getNextPrayer() {
 function updatePrayerList() {
     const next = getNextPrayer();
     const now = getTestTime();
-    const secs = 60 - now.getSeconds();
     const currentMinutes = now.getHours() * 60 + now.getMinutes();
 
     let html = '<div class="prayer-list">';
