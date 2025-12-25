@@ -53,6 +53,12 @@ async function getPrayerTimes() {
                 const [gunesH, gunesM] = parts[3].split(':').map(Number);
                 let sabahMinutes = gunesH * 60 + gunesM - SETTINGS.SABAH_OFFSET_MINUTES;
                 sabahMinutes = Math.floor(sabahMinutes / 15) * 15;
+
+                // Max 07:30
+                if (sabahMinutes > 450) {
+                    sabahMinutes = 450;
+                }
+
                 const sabahH = Math.floor(sabahMinutes / 60);
                 const sabahM = sabahMinutes % 60;
                 const sabahTime = `${sabahH.toString().padStart(2, '0')}:${sabahM.toString().padStart(2, '0')}`;
