@@ -18,8 +18,16 @@ const SETTINGS = {
 // ===== STATE =====
 let prayerTimes = {};
 const isTestMode = window.location.search.includes('test');
+const rotateLeft = window.location.search.includes('l');
+const rotateRight = window.location.search.includes('r');
 let testMinutes = 0;
 let lastDate = null;
+
+if (rotateLeft) {
+    document.body.classList.add('rotate-left');
+} else if (rotateRight) {
+    document.body.classList.add('rotate-right');
+}
 
 function getTestTime() {
     if (!isTestMode)

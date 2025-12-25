@@ -53,6 +53,99 @@ body {
   margin: 0;
 }
 
+/* 1. Set the body as a full-screen canvas that swaps dimensions */
+body.rotate-left,
+body.rotate-right {
+  position: fixed;
+  top: 0;
+  left: 0;
+  /* Swapping these is critical: 'width' is now physical height */
+  width: 100vh;
+  height: 100vw;
+  transform-origin: top left;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0;
+  background: #0a3d4a; /* Background color matches your gradient */
+}
+
+body.rotate-left {
+  transform: rotate(-90deg) translate(-100%, 0);
+}
+
+body.rotate-right {
+  transform: rotate(90deg) translate(0, -100%);
+}
+
+/* 2. Force the container to be tall and narrow */
+body[class*="rotate-"] .container {
+  /* This locks the card width so it doesn't stretch like Image 10 */
+  /*width: 480px !important;*/
+  /* This forces it to touch the top and bottom of the physical screen */
+  /*height: 98vh !important;*/
+  /*max-width: 95vh !important;*/
+
+  /* Use Flexbox to spread the content vertically */
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  /*padding: 2.5rem 1.5rem;*/
+  box-sizing: border-box;
+}
+
+/* 3. Make the prayer list expand to fill the tall white space */
+body[class*="rotate-"] .prayer-list {
+  flex-grow: 1;
+  display: flex;
+  flex-direction: column;
+  /* This spreads the prayer rows out evenly to fill the tall card */
+  justify-content: space-evenly;
+  margin-top: 1.5rem;
+}
+
+/* 4. Increase font scaling for the high-res rotated display */
+body[class*="rotate-"] #current-time {
+  font-size: clamp(3rem, 15vh, 7rem);
+}
+
+body[class*="rotate-"] .prayer-time {
+  font-size: clamp(2.5rem, 10vh, 4.5rem);
+}
+
+/* 1. Header & Date Scaling */
+body[class*="rotate-"] #date {
+  font-size: clamp(1.2rem, 3vh, 1.8rem); /* Scale date based on height */
+  margin-bottom: 1rem;
+}
+
+body[class*="rotate-"] h1 {
+  font-size: clamp(1.5rem, 4vh, 2.5rem);
+}
+
+/* 2. Prayer Name Scaling (Dutch, Turkish, Arabic) */
+body[class*="rotate-"] .lang-nl {
+  font-size: clamp(1rem, 2.5vh, 1.4rem);
+}
+
+body[class*="rotate-"] .lang-tr,
+body[class*="rotate-"] .lang-ar {
+  font-size: clamp(1.2rem, 3.5vh, 2rem);
+}
+
+/* 3. Countdown Badge Scaling */
+body[class*="rotate-"] .countdown-inline {
+  font-size: clamp(1rem, 3vh, 1.6rem);
+  padding: 0.6rem 1rem;
+}
+
+/* 4. Row Height Scaling */
+body[class*="rotate-"] .prayer-item {
+  min-height: 10vh; /* Ensures each row takes up at least 10% of the screen height */
+  padding: 1rem 1.5rem;
+}
+
 .container {
   background: rgba(255, 255, 255, 0.98);
   border-radius: 20px;
@@ -61,6 +154,13 @@ body {
   width: 95%;
   border: 2px solid rgba(30, 123, 143, 0.2);
   position: relative;
+}
+
+body.rotate-left .container,
+body.rotate-right .container {
+  max-width: none !important;
+  /*width: 95%;*/
+  /*min-height: 95%;*/
 }
 
 .logo {
@@ -350,7 +450,6 @@ h1 {
     page-break-after: avoid;
   }
 }
-
 
 @media (orientation: portrait) {
   .container {
