@@ -25,7 +25,8 @@ let lastDate = null;
 
 if (rotateLeft) {
     document.body.classList.add('rotate-left');
-} else if (rotateRight) {
+}
+else if (rotateRight) {
     document.body.classList.add('rotate-right');
 }
 
@@ -83,7 +84,8 @@ async function getPrayerTimes() {
 
         document.getElementById('date').innerHTML = `<p>${dateStr} - ${hicriDate}</p>`;
         updatePrayerList();
-    } catch (error) {
+    }
+    catch (error) {
         document.getElementById('prayer-times').innerHTML = '<p class="error">Fout bij het laden van gebedstijden</p>';
     }
 }
@@ -107,14 +109,25 @@ function updatePrayerList() {
     const now = getTestTime();
     const currentMinutes = now.getHours() * 60 + now.getMinutes();
 
+    let isAnyCurrent = false;
+    for (const [key, prayer] of Object.entries(prayerTimes)) {
+        const [hours, minutes] = prayer.time.split(':').map(Number);
+        const prayerMinutes = hours * 60 + minutes;
+        const minutesSincePrayer = currentMinutes - prayerMinutes;
+        if (minutesSincePrayer >= 0 && minutesSincePrayer < SETTINGS.CURRENT_PRAYER_THRESHOLD_MINUTES) {
+            isAnyCurrent = true;
+            break;
+        }
+    }
+
     let html = '<div class="prayer-list">';
     for (const [key, prayer] of Object.entries(prayerTimes)) {
         const [hours, minutes] = prayer.time.split(':').map(Number);
         const prayerMinutes = hours * 60 + minutes;
         const minutesSincePrayer = currentMinutes - prayerMinutes;
 
-        const isNext = next && next.key === key;
         const isCurrent = minutesSincePrayer >= 0 && minutesSincePrayer < SETTINGS.CURRENT_PRAYER_THRESHOLD_MINUTES;
+        const isNext = !isAnyCurrent && next && next.key === key;
         let countdown = '';
 
         if (isNext) {
