@@ -197,5 +197,5 @@ function updateTime() {
 
 getPrayerTimes();
 updateTime();
-//setInterval(updateTime, 1000);
+setInterval(updateTime, 1000);
 if (isTestMode) setInterval(() => testMinutes++, 100);
