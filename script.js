@@ -2,7 +2,7 @@
 const SETTINGS = {
     MONTHS: ['Ocak', 'Şubat', 'Mart', 'Nisan', 'Mayıs', 'Haziran',
         'Temmuz', 'Ağustos', 'Eylül', 'Ekim', 'Kasım', 'Aralık'],
-    SABAH_OFFSET_MINUTES: 40,
+    SABAH_OFFSET_MINUTES: 30,
     CURRENT_PRAYER_THRESHOLD_MINUTES: 3,
     PRAYER_TRANSLATIONS: {
         'imsak': {nl: 'Dageraad', tr: 'İmsak', ar: 'الإمساك'},
@@ -197,5 +197,5 @@ function updateTime() {
 
 getPrayerTimes();
 updateTime();
-setInterval(updateTime, 1000);
+//setInterval(updateTime, 1000);
 if (isTestMode) setInterval(() => testMinutes++, 100);

@@ -1,7 +1,6 @@
 html {
   color: #222;
   font-size: 1em;
-  line-height: 1.4;
 }
 
 ::-moz-selection {
@@ -91,7 +90,6 @@ body[class*="rotate-"] .container {
   display: flex;
   flex-direction: column;
   justify-content: center;
-  /*padding: 2.5rem 1.5rem;*/
   box-sizing: border-box;
 }
 
@@ -102,16 +100,15 @@ body[class*="rotate-"] .prayer-list {
   flex-direction: column;
   /* This spreads the prayer rows out evenly to fill the tall card */
   justify-content: space-evenly;
-  margin-top: 1.5rem;
 }
 
 /* 4. Increase font scaling for the high-res rotated display */
 body[class*="rotate-"] #current-time {
-  font-size: clamp(3rem, 15vh, 7rem);
+  font-size: clamp(3rem, 16vh, 15rem);
 }
 
 body[class*="rotate-"] .prayer-time {
-  font-size: clamp(2.5rem, 10vh, 4.5rem);
+  font-size: clamp(2.5rem, 17vh, 10rem);
 }
 
 /* 1. Header & Date Scaling */
@@ -159,8 +156,6 @@ body[class*="rotate-"] .prayer-item {
 body.rotate-left .container,
 body.rotate-right .container {
   max-width: none !important;
-  /*width: 95%;*/
-  /*min-height: 95%;*/
 }
 
 .logo {
@@ -178,7 +173,6 @@ h1 {
 }
 
 .header-grid {
-  margin-bottom: 1rem;
   text-align: center;
 }
 
@@ -198,7 +192,7 @@ h1 {
 }
 
 #current-time {
-  font-size: clamp(1.6rem, 11vw, 5.5rem);
+  font-size: clamp(1.6rem, 10vw, 6rem);
   font-weight: 700;
   color: #1e7b8f;
   text-align: center;
@@ -221,7 +215,7 @@ h1 {
 .prayer-list {
   display: flex;
   flex-direction: column;
-  gap: 0.6rem;
+  gap: 0.4rem;
 }
 
 .prayer-item {
@@ -326,7 +320,8 @@ h1 {
 .prayer-time {
   font-weight: 700;
   color: #1e7b8f;
-  font-size: clamp(2.0rem, 9vw, 3.8rem);
+  font-size: clamp(2.0rem, 9vw, 6rem);
+  margin: -10px;
 }
 
 .loading, .error {
