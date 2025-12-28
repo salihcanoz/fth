@@ -188,7 +188,12 @@ function updateTime() {
     // Check if the date has changed (midnight)
     const currentDate = now.getDate();
     if (lastDate !== null && lastDate !== currentDate) {
-        getPrayerTimes();
+        if (navigator.onLine) {
+            window.location.reload();
+        }
+        else {
+            getPrayerTimes();
+        }
     }
     lastDate = currentDate;
 
