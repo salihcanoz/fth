@@ -274,6 +274,11 @@ h1 {
   color: white;
 }
 
+.prayer-item.sabah-will-be-adjusted {
+  border: 4px solid red;
+  margin: -4px;
+}
+
 @keyframes blink {
   0%, 100% {
     opacity: 1;

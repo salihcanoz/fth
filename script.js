@@ -1,35 +1,76 @@
 // ===== SETTINGS =====
 const SETTINGS = {
-    MONTHS: ['Ocak', 'Şubat', 'Mart', 'Nisan', 'Mayıs', 'Haziran',
-        'Temmuz', 'Ağustos', 'Eylül', 'Ekim', 'Kasım', 'Aralık'],
     SABAH_OFFSET_MINUTES: 30,
+    SABAH_IN_RAMADAN_OFFSET_MINUTES: 20,
     CURRENT_PRAYER_THRESHOLD_MINUTES: 3,
+    WEEKEND_START_DAY: 'Cumartesi',
     PRAYER_TRANSLATIONS: {
-        'imsak': {nl: 'Dageraad', tr: 'İmsak', ar: 'الإمساك'},
-        'sabah': {nl: 'Ochtend', tr: 'Sabah', ar: 'الفجر'},
-        'gunes': {nl: 'Zonsopgang', tr: 'Güneş', ar: 'الشروق'},
-        'ogle': {nl: 'Middag', tr: 'Öğle', ar: 'الظهر'},
-        'ikindi': {nl: 'Namiddag', tr: 'İkindi', ar: 'العصر'},
-        'aksam': {nl: 'Avond', tr: 'Akşam', ar: 'المغرب'},
-        'yatsi': {nl: 'Nacht', tr: 'Yatsı', ar: 'العشاء'}
+        'imsak': { nl: 'Dageraad', tr: 'İmsak', ar: 'الإمساك' },
+        'sabah': { nl: 'Ochtend', tr: 'Sabah', ar: 'الفجر' },
+        'gunes': { nl: 'Zonsopgang', tr: 'Güneş', ar: 'الشروق' },
+        'ogle': { nl: 'Middag', tr: 'Öğle', ar: 'الظهر' },
+        'ikindi': { nl: 'Namiddag', tr: 'İkindi', ar: 'العصر' },
+        'aksam': { nl: 'Avond', tr: 'Akşam', ar: 'المغرب' },
+        'yatsi': { nl: 'Nacht', tr: 'Yatsı', ar: 'العشاء' }
     }
 };
 
 // ===== STATE =====
 let prayerTimes = {};
+let prayerArray = [];
 const isTestMode = window.location.search.includes('test');
-const rotateLeft = window.location.search.includes('l');
-const rotateRight = window.location.search.includes('r');
 let testMinutes = 0;
 let lastDate = null;
+let sabahWillBeAdjusted = false;
 
-if (rotateLeft) {
-    document.body.classList.add('rotate-left');
-}
-else if (rotateRight) {
-    document.body.classList.add('rotate-right');
+// ===== DOM CACHE =====
+const domElements = {
+    prayerTimes: null,
+    date: null,
+    currentTime: null
+};
+
+function cacheDOMElements() {
+    domElements.prayerTimes = document.getElementById('prayer-times');
+    domElements.date = document.getElementById('date');
+    domElements.currentTime = document.getElementById('current-time');
 }
 
+// ===== FUNCTIONS =====
+/**
+ * Converts a time string (HH:MM) to total minutes
+ * @param {string} timeStr - Time in format 'HH:MM'
+ * @returns {number} Total minutes, or 0 if invalid input
+ */
+function timeToMinutes(timeStr) {
+    if (!timeStr || typeof timeStr !== 'string') {
+        console.warn('Invalid time string:', timeStr);
+        return 0;
+    }
+    const [h, m] = timeStr.split(':').map(Number);
+    if (isNaN(h) || isNaN(m)) {
+        console.warn('Invalid time format:', timeStr);
+        return 0;
+    }
+    return h * 60 + m;
+}
+
+/**
+ * Calculates the day of the year (1-365/366)
+ * @param {Date} date - The date to calculate for
+ * @returns {number} Day of year (0-based index)
+ */
+function getDayOfYear(date) {
+    const start = new Date(date.getFullYear(), 0, 1);
+    const diff = date - start;
+    const oneDay = 1000 * 60 * 60 * 24;
+    return Math.floor(diff / oneDay);
+}
+
+/**
+ * Gets the current time or test time if in test mode
+ * @returns {Date} Current or test time
+ */
 function getTestTime() {
     if (!isTestMode)
         return new Date();
@@ -39,80 +80,173 @@ function getTestTime() {
     return now;
 }
 
+/**
+ * Finds the minimum sunrise time in the week starting from a given day
+ * @param {string[]} lines - Array of prayer data lines
+ * @param {number} dayOfYear - Day of year (1-based index)
+ * @returns {string} Minimum sunrise time in format 'HH:MM'
+ */
+function getMinimumSunriseOfTheWeek(lines, dayOfYear) {
+    let minSunrise = null;
+
+    // Find the Saturday at or before the given day
+    let index = Math.min(dayOfYear, lines.length - 1);
+    while (index > 0) {
+        const parts = lines[index].split(',');
+        if (parts[0].includes(SETTINGS.WEEKEND_START_DAY)) break;
+        index--;
+    }
+
+    // Iterate through the week starting from Saturday
+    for (let i = 0; i < 7; i++) {
+        if (index >= lines.length) break;
+
+        const gunes = lines[index].split(',')[3]; // Güneş time
+
+        if (minSunrise === null || gunes < minSunrise) {
+            minSunrise = gunes;
+        }
+        index++;
+    }
+    return minSunrise;
+}
+
+/**
+ * Calculates Sabah (dawn) prayer time minutes based on sunrise
+ * @param {number} gunesH - Sunrise hour
+ * @param {number} gunesM - Sunrise minute
+ * @returns {number} Sabah time in minutes
+ */
+function calculateSabahMinutes(gunesH, gunesM) {
+    const gunesMinutes = gunesH * 60 + gunesM;
+    let sabahMinutes = gunesMinutes - SETTINGS.SABAH_OFFSET_MINUTES;
+    sabahMinutes = Math.floor(sabahMinutes / 15) * 15;
+
+    // Max 07:30
+    if (sabahMinutes > 450) {
+        sabahMinutes = 450;
+    }
+    return sabahMinutes;
+}
+
+/**
+ * Fetches and processes prayer times for the current day
+ * Calculates Sabah time based on sunrise or Ramadan Imsak
+ * @returns {Promise<void>}
+ */
 async function getPrayerTimes() {
     try {
         const today = new Date();
-        const lines = prayerData.split('\n');
-        const todayStr = `${today.getDate().toString().padStart(2, '0')} ${SETTINGS.MONTHS[today.getMonth()]} ${today.getFullYear()}`;
-        let hicriDate = '';
-
-        for (let i = 1; i < lines.length; i++) {
-            if (lines[i].includes(todayStr)) {
-                const parts = lines[i].split(',');
-
-                // Calculate Sabah: offset minutes (15) before Güneş, rounded down to specified minutes
-                const [gunesH, gunesM] = parts[3].split(':').map(Number);
-                let sabahMinutes = gunesH * 60 + gunesM - SETTINGS.SABAH_OFFSET_MINUTES;
-                sabahMinutes = Math.floor(sabahMinutes / 15) * 15;
-
-                // Max 07:30
-                if (sabahMinutes > 450) {
-                    sabahMinutes = 450;
-                }
-
-                const sabahH = Math.floor(sabahMinutes / 60);
-                const sabahM = sabahMinutes % 60;
-                const sabahTime = `${sabahH.toString().padStart(2, '0')}:${sabahM.toString().padStart(2, '0')}`;
-                hicriDate = parts[1];
-
-                prayerTimes = {
-                    'imsak': {time: parts[2], ...SETTINGS.PRAYER_TRANSLATIONS.imsak},
-                    'sabah': {time: sabahTime, ...SETTINGS.PRAYER_TRANSLATIONS.sabah},
-                    'gunes': {time: parts[3], ...SETTINGS.PRAYER_TRANSLATIONS.gunes},
-                    'ogle': {time: parts[4], ...SETTINGS.PRAYER_TRANSLATIONS.ogle},
-                    'ikindi': {time: parts[5], ...SETTINGS.PRAYER_TRANSLATIONS.ikindi},
-                    'aksam': {time: parts[6], ...SETTINGS.PRAYER_TRANSLATIONS.aksam},
-                    'yatsi': {time: parts[7], ...SETTINGS.PRAYER_TRANSLATIONS.yatsi}
-                };
-                break;
-            }
+        let dayOfYear = getDayOfYear(today);
+        const lines = prayerData.split('\n').filter(line => line.trim()); // Remove empty lines
+        
+        // Skip the header line if present
+        const startIndex = lines[0].includes('Miladi Tarih') ? 1 : 0;
+        const dataIndex = dayOfYear + startIndex;
+        
+        // Validate prayer data exists
+        if (!lines[dataIndex]) {
+            throw new Error(`Prayer data not available for day ${dayOfYear}`);
         }
+        
+        const [turkishDate, hijriDate, imsak, gunes, ogle, ikindi, aksam, yatsi] = lines[dataIndex].split(',');
 
         const dateStr = today.toLocaleDateString('nl-NL', {
             weekday: 'long', year: 'numeric', month: 'long', day: 'numeric'
         });
+        domElements.date.innerHTML = `<p>${dateStr} - ${hijriDate}</p>`;
 
-        document.getElementById('date').innerHTML = `<p>${dateStr} - ${hicriDate}</p>`;
-        updatePrayerList();
+        let sabahMinutes;
+
+        if (hijriDate.includes('Ramazan')) {
+            // Calculate Sabah in Ramadan: Imsak + offset minutes (20)
+            sabahMinutes = timeToMinutes(imsak) + SETTINGS.SABAH_IN_RAMADAN_OFFSET_MINUTES;
+        }
+        else {
+            const gunesMinutes = timeToMinutes(getMinimumSunriseOfTheWeek(lines, dataIndex));
+            const gunesH = Math.floor(gunesMinutes / 60);
+            const gunesM = gunesMinutes % 60;
+            sabahMinutes = calculateSabahMinutes(gunesH, gunesM);
+
+            // get the minimum sunrise of next week if today is Friday
+            if (turkishDate.endsWith('Cuma')) {
+                const nextWeekIndex = Math.min(dataIndex + 7, lines.length - 1);
+                const gunesNMinutes = timeToMinutes(getMinimumSunriseOfTheWeek(lines, nextWeekIndex));
+                if (gunesNMinutes > 0) {
+                    const gunesNH = Math.floor(gunesNMinutes / 60);
+                    const gunesNM = gunesNMinutes % 60;
+                    const sabahMinutesN = calculateSabahMinutes(gunesNH, gunesNM);
+                    sabahWillBeAdjusted = sabahMinutes !== sabahMinutesN;
+                }
+                else {
+                    sabahWillBeAdjusted = false;
+                }
+            }
+            else {
+                sabahWillBeAdjusted = false;
+            }
+        }
+
+        const sabahH = Math.floor(sabahMinutes / 60);
+        const sabahM = sabahMinutes % 60;
+        const sabahTime = `${sabahH.toString().padStart(2, '0')}:${sabahM.toString().padStart(2, '0')}`;
+
+        prayerTimes = {
+            'imsak': { time: imsak, ...SETTINGS.PRAYER_TRANSLATIONS.imsak },
+            'sabah': { time: sabahTime, ...SETTINGS.PRAYER_TRANSLATIONS.sabah },
+            'gunes': { time: gunes, ...SETTINGS.PRAYER_TRANSLATIONS.gunes },
+            'ogle': { time: ogle, ...SETTINGS.PRAYER_TRANSLATIONS.ogle },
+            'ikindi': { time: ikindi, ...SETTINGS.PRAYER_TRANSLATIONS.ikindi },
+            'aksam': { time: aksam, ...SETTINGS.PRAYER_TRANSLATIONS.aksam },
+            'yatsi': { time: yatsi, ...SETTINGS.PRAYER_TRANSLATIONS.yatsi }
+        };
+        
+        // Cache prayer array for efficient lookups
+        prayerArray = Object.entries(prayerTimes);
     }
     catch (error) {
-        document.getElementById('prayer-times').innerHTML = '<p class="error">Fout bij het laden van gebedstijden</p>';
+        console.error('Error loading prayer times:', error);
+        domElements.prayerTimes.innerHTML = '<p class="error">Fout bij het laden van gebedstijden: ' + error.message + '</p>';
     }
 }
 
+/**
+ * Determines which prayer is next
+ * @returns {Object|null} Object with key, prayer, and minutes to prayer, or null if none upcoming
+ */
 function getNextPrayer() {
     const now = getTestTime();
     const currentMinutes = now.getHours() * 60 + now.getMinutes();
 
-    for (const [key, prayer] of Object.entries(prayerTimes)) {
-        const [hours, minutes] = prayer.time.split(':').map(Number);
-        const prayerMinutes = hours * 60 + minutes;
+    for (const [key, prayer] of prayerArray) {
+        const prayerMinutes = timeToMinutes(prayer.time);
         if (prayerMinutes > currentMinutes) {
-            return {key, prayer, minutes: prayerMinutes - currentMinutes};
+            return { key, prayer, minutes: prayerMinutes - currentMinutes };
         }
     }
     return null;
 }
 
+/**
+ * Updates the prayer times display with current status and countdowns
+ * Highlights current and next prayer times
+ * @returns {void}
+ */
 function updatePrayerList() {
+    // Guard against empty prayer data
+    if (!prayerArray || prayerArray.length === 0) {
+        domElements.prayerTimes.innerHTML = '<p class="info">Gebedstijden niet beschikbaar</p>';
+        return;
+    }
+
     const next = getNextPrayer();
     const now = getTestTime();
     const currentMinutes = now.getHours() * 60 + now.getMinutes();
 
+    // First pass: determine if any prayer is current
     let isAnyCurrent = false;
-    for (const [key, prayer] of Object.entries(prayerTimes)) {
-        const [hours, minutes] = prayer.time.split(':').map(Number);
-        const prayerMinutes = hours * 60 + minutes;
+    for (const [key, prayer] of prayerArray) {
+        const prayerMinutes = timeToMinutes(prayer.time);
         const minutesSincePrayer = currentMinutes - prayerMinutes;
         if (minutesSincePrayer >= 0 && minutesSincePrayer < SETTINGS.CURRENT_PRAYER_THRESHOLD_MINUTES) {
             isAnyCurrent = true;
@@ -120,18 +254,16 @@ function updatePrayerList() {
         }
     }
 
-    let html = '<div class="prayer-list">';
-    for (const [key, prayer] of Object.entries(prayerTimes)) {
+    // Compute prayer display data (single pass)
+    const prayerDisplayData = prayerArray.map(([key, prayer]) => {
+        const prayerMinutes = timeToMinutes(prayer.time);
         const [hours, minutes] = prayer.time.split(':').map(Number);
-        const prayerMinutes = hours * 60 + minutes;
         const minutesSincePrayer = currentMinutes - prayerMinutes;
-
         const isCurrent = minutesSincePrayer >= 0 && minutesSincePrayer < SETTINGS.CURRENT_PRAYER_THRESHOLD_MINUTES;
         const isNext = !isAnyCurrent && next && next.key === key;
+        
         let countdown = '';
-
         if (isNext) {
-            // Compute the exact remaining seconds (no "60s", no +1 minute)
             const target = new Date(now);
             target.setHours(hours, minutes, 0, 0);
             let totalSeconds = Math.ceil((target.getTime() - now.getTime()) / 1000);
@@ -157,8 +289,14 @@ function updatePrayerList() {
             countdown = `<span class="countdown-inline">${timerText}</span>`;
         }
 
+        return { key, prayer, isCurrent, isNext, countdown };
+    });
+
+    // Render prayer list
+    let html = '<div class="prayer-list">';
+    for (const { key, prayer, isCurrent, isNext, countdown } of prayerDisplayData) {
         html += `
-          <div class="prayer-item ${isNext ? 'next' : ''} ${isCurrent ? 'current' : ''}">
+          <div class="prayer-item ${isNext ? 'next' : ''} ${isCurrent ? 'current' : ''} ${key === 'sabah' && sabahWillBeAdjusted ? 'sabah-will-be-adjusted' : ''}">
             <span class="prayer-name-left">
               <span class="lang-nl">${prayer.nl}</span>
               <span class="lang-tr">${prayer.tr}</span>
@@ -174,12 +312,17 @@ function updatePrayerList() {
         `;
     }
     html += '</div>';
-    document.getElementById('prayer-times').innerHTML = html;
+    domElements.prayerTimes.innerHTML = html;
 }
 
+/**
+ * Updates current time display and prayer list
+ * Reloads page at midnight if online
+ * @returns {void}
+ */
 function updateTime() {
     const now = getTestTime();
-    document.getElementById('current-time').textContent = now.toLocaleTimeString('nl-NL', {
+    domElements.currentTime.textContent = now.toLocaleTimeString('nl-NL', {
         hour: '2-digit',
         minute: '2-digit',
         second: '2-digit'
@@ -191,16 +334,34 @@ function updateTime() {
         if (navigator.onLine) {
             window.location.reload();
         }
-        else {
-            getPrayerTimes();
-        }
+        // else {
+        //     getPrayerTimes();
+        // }
     }
     lastDate = currentDate;
 
     updatePrayerList();
 }
 
+// Initial load
+cacheDOMElements();
+if (!domElements.prayerTimes || !domElements.date || !domElements.currentTime) {
+    console.error('Required DOM elements not found');
+}
 getPrayerTimes();
 updateTime();
 setInterval(updateTime, 1000);
-if (isTestMode) setInterval(() => testMinutes++, 100);
+if (isTestMode) {
+    setInterval(() => {
+        testMinutes++;
+    }, 100);
+}
+
+
+// Apply rotation based on URL parameters
+if (window.location.search.includes('l')) {
+    document.body.classList.add('rotate-left');
+}
+else if (window.location.search.includes('r')) {
+    document.body.classList.add('rotate-right');
+}
