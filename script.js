@@ -3,7 +3,7 @@ const SETTINGS = {
     SABAH_OFFSET_MINUTES: 30,
     SABAH_IN_RAMADAN_OFFSET_MINUTES: 20,
     CURRENT_PRAYER_THRESHOLD_MINUTES: 3,
-    WEEKEND_START_DAY: 'Cumartesi',
+    CHECK_DAY: 'Cuma',
     PRAYER_TRANSLATIONS: {
         'imsak': { nl: 'Dageraad', tr: 'İmsak', ar: 'الإمساك' },
         'sabah': { nl: 'Ochtend', tr: 'Sabah', ar: 'الفجر' },
@@ -75,16 +75,17 @@ function getTestTime() {
     if (!isTestMode)
         return new Date();
 
-    let now = new Date();
-    now.setMinutes(now.getMinutes() + testMinutes);
-    return now;
+    const now = new Date().getTime();
+    let startOfDay = new Date(now - (now % 86400000));
+    startOfDay.setMinutes(startOfDay.getMinutes() + testMinutes);
+    return startOfDay;
 }
 
 /**
  * Finds the minimum sunrise time in the week starting from a given day
  * @param {string[]} lines - Array of prayer data lines
  * @param {number} dayOfYear - Day of year (1-based index)
- * @returns {string} Minimum sunrise time in format 'HH:MM'
+ * @returns {string|null} Minimum sunrise time in format 'HH:MM'
  */
 function getMinimumSunriseOfTheWeek(lines, dayOfYear) {
     let minSunrise = null;
@@ -93,7 +94,11 @@ function getMinimumSunriseOfTheWeek(lines, dayOfYear) {
     let index = Math.min(dayOfYear, lines.length - 1);
     while (index > 0) {
         const parts = lines[index].split(',');
-        if (parts[0].includes(SETTINGS.WEEKEND_START_DAY)) break;
+        if (parts[0].endsWith(SETTINGS.CHECK_DAY)) {
+            //previous Friday found, go one step forward to get Saturday
+            index++;
+            break;
+        }
         index--;
     }
 
@@ -169,7 +174,7 @@ async function getPrayerTimes() {
             sabahMinutes = calculateSabahMinutes(gunesH, gunesM);
 
             // get the minimum sunrise of next week if today is Friday
-            if (turkishDate.endsWith('Cuma')) {
+            if (turkishDate.endsWith(SETTINGS.CHECK_DAY)) {
                 const nextWeekIndex = Math.min(dataIndex + 7, lines.length - 1);
                 const gunesNMinutes = timeToMinutes(getMinimumSunriseOfTheWeek(lines, nextWeekIndex));
                 if (gunesNMinutes > 0) {
