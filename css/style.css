@@ -236,7 +236,7 @@ h1 {
 .prayer-item.next {
   background: linear-gradient(135deg, #1e7b8f 0%, #156270 100%);
   color: white;
-  transform: scale(1.05);
+  /*transform: scale(1.05);*/
   box-shadow: 0 4px 15px rgba(30, 123, 143, 0.3);
 }
 
