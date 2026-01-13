@@ -174,6 +174,7 @@ async function getPrayerTimes() {
             if (tomorrowHijriDate.includes('Ramazan')) {
                 // Still in Ramadan tomorrow, no adjustment needed
                 sabahWillBeAdjusted = false;
+                sabahMinutesTomorrow = timeToMinutes(tomorrrow[2]) + SETTINGS.SABAH_IN_RAMADAN_OFFSET_MINUTES;
             }
             else {
                 // Tomorrow is Ramadan ending, check adjustment
@@ -213,8 +214,7 @@ async function getPrayerTimes() {
             else if (tomorrrow[1].includes('Ramazan')) {
                 // Tomorrow is Ramadan starting, sabah will be adjusted
                 sabahWillBeAdjusted = true;                
-                sabahMinutesTomorrow = timeToMinutes(tomorrrow[2]) + SETTINGS.SABAH_IN_RAMADAN_OFFSET_MINUTES;            
-                
+                sabahMinutesTomorrow = timeToMinutes(tomorrrow[2]) + SETTINGS.SABAH_IN_RAMADAN_OFFSET_MINUTES;
             }            
             else {
                 sabahWillBeAdjusted = false;
