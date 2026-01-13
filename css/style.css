@@ -279,6 +279,10 @@ h1 {
   margin: -4px;
 }
 
+.prayer-item.current .tomorrow {
+  color: white;
+}
+
 @keyframes blink {
   0%, 100% {
     opacity: 1;
@@ -296,6 +300,9 @@ h1 {
 }
 
 .prayer-name-right {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
   text-align: right;
 }
 
@@ -314,6 +321,12 @@ h1 {
   font-size: clamp(1.15rem, 4.2vw, 1.6rem);
   font-weight: 600;
   color: #495057;
+}
+
+.tomorrow {
+  font-size: clamp(1.15rem, 4.2vw, 1.6rem);
+  font-weight: 600;
+  color: red;
 }
 
 .prayer-time-wrapper {

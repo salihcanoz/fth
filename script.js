@@ -22,6 +22,7 @@ const isTestMode = window.location.search.includes('test');
 let testMinutes = 0;
 let lastDate = null;
 let sabahWillBeAdjusted = false;
+let sabahTimeTomorrow = null;
 
 // ===== DOM CACHE =====
 const domElements = {
@@ -155,6 +156,7 @@ async function getPrayerTimes() {
         }
         
         const [turkishDate, hijriDate, imsak, gunes, ogle, ikindi, aksam, yatsi] = lines[dataIndex].split(',');
+        const tomorrrow = lines[dataIndex + 1].split(',');
 
         const dateStr = today.toLocaleDateString('nl-NL', {
             weekday: 'long', year: 'numeric', month: 'long', day: 'numeric'
@@ -162,10 +164,28 @@ async function getPrayerTimes() {
         domElements.date.innerHTML = `<p>${dateStr} - ${hijriDate}</p>`;
 
         let sabahMinutes;
+        let sabahMinutesTomorrow;
+        sabahTimeTomorrow = null;
 
         if (hijriDate.includes('Ramazan')) {
             // Calculate Sabah in Ramadan: Imsak + offset minutes (20)
-            sabahMinutes = timeToMinutes(imsak) + SETTINGS.SABAH_IN_RAMADAN_OFFSET_MINUTES;
+            sabahMinutes = timeToMinutes(imsak) + SETTINGS.SABAH_IN_RAMADAN_OFFSET_MINUTES;            
+            const tomorrowHijriDate = tomorrrow[1];
+            if (tomorrowHijriDate.includes('Ramazan')) {
+                // Still in Ramadan tomorrow, no adjustment needed
+                sabahWillBeAdjusted = false;
+            }
+            else {
+                // Tomorrow is Ramadan ending, check adjustment
+                const gunesMinutes = timeToMinutes(getMinimumSunriseOfTheWeek(lines, dataIndex + 1));
+                const gunesH = Math.floor(gunesMinutes / 60);
+                const gunesM = gunesMinutes % 60;
+                const sabahMinutesN = calculateSabahMinutes(gunesH, gunesM);
+                sabahWillBeAdjusted = sabahMinutes !== sabahMinutesN;
+                if (sabahWillBeAdjusted) {
+                    sabahMinutesTomorrow = sabahMinutesN;
+                }
+            }
         }
         else {
             const gunesMinutes = timeToMinutes(getMinimumSunriseOfTheWeek(lines, dataIndex));
@@ -182,11 +202,20 @@ async function getPrayerTimes() {
                     const gunesNM = gunesNMinutes % 60;
                     const sabahMinutesN = calculateSabahMinutes(gunesNH, gunesNM);
                     sabahWillBeAdjusted = sabahMinutes !== sabahMinutesN;
+                    if (sabahWillBeAdjusted) {
+                       sabahMinutesTomorrow = sabahMinutesN;
+                    }
                 }
                 else {
                     sabahWillBeAdjusted = false;
                 }
             }
+            else if (tomorrrow[1].includes('Ramazan')) {
+                // Tomorrow is Ramadan starting, sabah will be adjusted
+                sabahWillBeAdjusted = true;                
+                sabahMinutesTomorrow = timeToMinutes(tomorrrow[2]) + SETTINGS.SABAH_IN_RAMADAN_OFFSET_MINUTES;            
+                
+            }            
             else {
                 sabahWillBeAdjusted = false;
             }
@@ -196,6 +225,13 @@ async function getPrayerTimes() {
         const sabahM = sabahMinutes % 60;
         const sabahTime = `${sabahH.toString().padStart(2, '0')}:${sabahM.toString().padStart(2, '0')}`;
 
+        if(sabahMinutesTomorrow !== undefined) {
+            const sabahNH = Math.floor(sabahMinutesTomorrow / 60);
+            const sabahNM = sabahMinutesTomorrow % 60;
+            sabahTimeTomorrow = `${sabahNH.toString().padStart(2, '0')}:${sabahNM.toString().padStart(2, '0')}`;
+        }
+
+        // Build prayer times object
         prayerTimes = {
             'imsak': { time: imsak, ...SETTINGS.PRAYER_TRANSLATIONS.imsak },
             'sabah': { time: sabahTime, ...SETTINGS.PRAYER_TRANSLATIONS.sabah },
@@ -311,6 +347,7 @@ function updatePrayerList() {
               ${countdown}
             </span>
             <span class="prayer-name-right">
+              <span class="tomorrow">${key === 'sabah' && sabahTimeTomorrow ? sabahTimeTomorrow : ''}</span>
               <span class="lang-ar">${prayer.ar}</span>
             </span>
           </div>
