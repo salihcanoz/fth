@@ -280,7 +280,7 @@ h1 {
 }
 
 .prayer-item.current .tomorrow {
-  color: white;
+  color: rgba(255, 255, 255, 0.8);
 }
 
 @keyframes blink {
@@ -326,7 +326,7 @@ h1 {
 .tomorrow {
   font-size: clamp(1.15rem, 4.2vw, 1.6rem);
   font-weight: 600;
-  color:#1e7b8f;
+  color:#6c757d;
 }
 
 .prayer-time-wrapper {
