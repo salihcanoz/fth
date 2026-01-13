@@ -23,6 +23,7 @@ let testMinutes = 0;
 let lastDate = null;
 let sabahWillBeAdjusted = false;
 let sabahTimeTomorrow = null;
+let imsakTimeTomorrow = null;
 
 // ===== DOM CACHE =====
 const domElements = {
@@ -175,6 +176,7 @@ async function getPrayerTimes() {
                 // Still in Ramadan tomorrow, no adjustment needed
                 sabahWillBeAdjusted = false;
                 sabahMinutesTomorrow = timeToMinutes(tomorrrow[2]) + SETTINGS.SABAH_IN_RAMADAN_OFFSET_MINUTES;
+                imsakTimeTomorrow = tomorrrow[2];
             }
             else {
                 // Tomorrow is Ramadan ending, check adjustment
@@ -215,6 +217,7 @@ async function getPrayerTimes() {
                 // Tomorrow is Ramadan starting, sabah will be adjusted
                 sabahWillBeAdjusted = true;                
                 sabahMinutesTomorrow = timeToMinutes(tomorrrow[2]) + SETTINGS.SABAH_IN_RAMADAN_OFFSET_MINUTES;
+                imsakTimeTomorrow = tomorrrow[2];
             }            
             else {
                 sabahWillBeAdjusted = false;
@@ -347,7 +350,9 @@ function updatePrayerList() {
               ${countdown}
             </span>
             <span class="prayer-name-right">
-              <span class="tomorrow">${key === 'sabah' && sabahTimeTomorrow ? sabahTimeTomorrow : ''}</span>
+              <span class="tomorrow">${key === 'sabah' && sabahTimeTomorrow ? sabahTimeTomorrow : ''}
+                ${key === 'imsak' && imsakTimeTomorrow ? imsakTimeTomorrow : ''}
+              </span>
               <span class="lang-ar">${prayer.ar}</span>
             </span>
           </div>

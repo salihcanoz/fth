@@ -326,7 +326,7 @@ h1 {
 .tomorrow {
   font-size: clamp(1.15rem, 4.2vw, 1.6rem);
   font-weight: 600;
-  color: red;
+  color:#1e7b8f;
 }
 
 .prayer-time-wrapper {
