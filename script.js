@@ -146,16 +146,16 @@ async function getPrayerTimes() {
         const today = new Date();
         let dayOfYear = getDayOfYear(today);
         const lines = prayerData.split('\n').filter(line => line.trim()); // Remove empty lines
-        
+
         // Skip the header line if present
         const startIndex = lines[0].includes('Miladi Tarih') ? 1 : 0;
         const dataIndex = dayOfYear + startIndex;
-        
+
         // Validate prayer data exists
         if (!lines[dataIndex]) {
             throw new Error(`Prayer data not available for day ${dayOfYear}`);
         }
-        
+
         const [turkishDate, hijriDate, imsak, gunes, ogle, ikindi, aksam, yatsi] = lines[dataIndex].split(',');
         const tomorrrow = lines[dataIndex + 1].split(',');
 
@@ -170,7 +170,7 @@ async function getPrayerTimes() {
 
         if (hijriDate.includes('Ramazan')) {
             // Calculate Sabah in Ramadan: Imsak + offset minutes (20)
-            sabahMinutes = timeToMinutes(imsak) + SETTINGS.SABAH_IN_RAMADAN_OFFSET_MINUTES;            
+            sabahMinutes = timeToMinutes(imsak) + SETTINGS.SABAH_IN_RAMADAN_OFFSET_MINUTES;
             const tomorrowHijriDate = tomorrrow[1];
             if (tomorrowHijriDate.includes('Ramazan')) {
                 // Still in Ramadan tomorrow, no adjustment needed
@@ -206,7 +206,7 @@ async function getPrayerTimes() {
                     const sabahMinutesN = calculateSabahMinutes(gunesNH, gunesNM);
                     sabahWillBeAdjusted = sabahMinutes !== sabahMinutesN;
                     if (sabahWillBeAdjusted) {
-                       sabahMinutesTomorrow = sabahMinutesN;
+                        sabahMinutesTomorrow = sabahMinutesN;
                     }
                 }
                 else {
@@ -215,10 +215,10 @@ async function getPrayerTimes() {
             }
             else if (tomorrrow[1].includes('Ramazan')) {
                 // Tomorrow is Ramadan starting, sabah will be adjusted
-                sabahWillBeAdjusted = true;                
+                sabahWillBeAdjusted = true;
                 sabahMinutesTomorrow = timeToMinutes(tomorrrow[2]) + SETTINGS.SABAH_IN_RAMADAN_OFFSET_MINUTES;
                 imsakTimeTomorrow = tomorrrow[2];
-            }            
+            }
             else {
                 sabahWillBeAdjusted = false;
             }
@@ -228,7 +228,7 @@ async function getPrayerTimes() {
         const sabahM = sabahMinutes % 60;
         const sabahTime = `${sabahH.toString().padStart(2, '0')}:${sabahM.toString().padStart(2, '0')}`;
 
-        if(sabahMinutesTomorrow !== undefined) {
+        if (sabahMinutesTomorrow !== undefined) {
             const sabahNH = Math.floor(sabahMinutesTomorrow / 60);
             const sabahNM = sabahMinutesTomorrow % 60;
             sabahTimeTomorrow = `${sabahNH.toString().padStart(2, '0')}:${sabahNM.toString().padStart(2, '0')}`;
@@ -244,7 +244,7 @@ async function getPrayerTimes() {
             'aksam': { time: aksam, ...SETTINGS.PRAYER_TRANSLATIONS.aksam },
             'yatsi': { time: yatsi, ...SETTINGS.PRAYER_TRANSLATIONS.yatsi }
         };
-        
+
         // Cache prayer array for efficient lookups
         prayerArray = Object.entries(prayerTimes);
     }
@@ -305,7 +305,7 @@ function updatePrayerList() {
         const minutesSincePrayer = currentMinutes - prayerMinutes;
         const isCurrent = minutesSincePrayer >= 0 && minutesSincePrayer < SETTINGS.CURRENT_PRAYER_THRESHOLD_MINUTES;
         const isNext = !isAnyCurrent && next && next.key === key;
-        
+
         let countdown = '';
         if (isNext) {
             const target = new Date(now);
