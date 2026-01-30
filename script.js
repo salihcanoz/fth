@@ -96,9 +96,9 @@ function getMinimumSunriseOfTheWeek(lines, dayOfYear) {
     let index = Math.min(dayOfYear, lines.length - 1);
     while (index > 0) {
         const parts = lines[index].split(',');
-        if (parts[0].endsWith(SETTINGS.CHECK_DAY)) {
+        if (parts[0].endsWith("Cumartesi")) {
             //previous Friday found, go one step forward to get Saturday
-            index++;
+            //index++;
             break;
         }
         index--;
