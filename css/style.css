@@ -46,6 +46,8 @@ body {
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
   background: linear-gradient(135deg, #2a9db5 0%, #1e7b8f 30%, #156270 70%, #0a3d4a 100%);
   min-height: 100vh;
+  min-height: 100svh;
+  min-height: 100dvh;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -145,8 +147,8 @@ body[class*="rotate-"] .prayer-item {
 
 .container {
   background: rgba(255, 255, 255, 0.98);
-  border-radius: 20px;
-  padding: 2rem;
+  border-radius: 0.5rem;
+  padding: 0.5rem;
   box-shadow: 0 20px 60px rgba(0, 0, 0, 0.15);
   width: 95%;
   border: 2px solid rgba(30, 123, 143, 0.2);
@@ -162,7 +164,7 @@ body.rotate-right .container {
   position: absolute;
   top: -.3rem;
   right: -.5rem;
-  height: 50px;
+  height: 3rem;
   width: auto;
 }
 
@@ -206,7 +208,7 @@ h1 {
   font-weight: 600;
   color: rgba(255, 255, 255, 0.95);
   padding: 0.1rem;
-  margin: 0.1rem;
+  margin-top: 0.3rem;
   background: rgba(255, 255, 255, 0.25);
   border-radius: 5px;
   font-family: 'Roboto Mono', monospace;
@@ -223,7 +225,7 @@ h1 {
   display: grid;
   grid-template-columns: 1.2fr auto 1fr;
   align-items: center;
-  padding: 0 1.2rem;
+  padding: 0.2rem 1.2rem;
   background: #efefef;
   border-radius: 10px;
   transition: transform 0.2s;
@@ -476,5 +478,11 @@ h1 {
 @media (orientation: landscape) {
   .container {
     max-width: 500px;
+  }
+}
+
+@media only screen and (max-device-width: 430px){
+  .header-grid {
+    margin-top: 1rem;
   }
 }
