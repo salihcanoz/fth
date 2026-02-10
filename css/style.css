@@ -124,13 +124,14 @@ body[class*="rotate-"] h1 {
 }
 
 /* 2. Prayer Name Scaling (Dutch, Turkish, Arabic) */
-body[class*="rotate-"] .lang-nl {
-  font-size: clamp(1rem, 2.5vh, 1.4rem);
+body[class*="rotate-"] .lang-nl,
+body[class*="rotate-"] .tomorrow {
+  font-size: clamp(2.5rem, 2.5vh, 1.4rem);
 }
 
 body[class*="rotate-"] .lang-tr,
 body[class*="rotate-"] .lang-ar {
-  font-size: clamp(1.2rem, 3.5vh, 2rem);
+  font-size: clamp(2.5rem, 3.5vh, 2rem);
 }
 
 /* 3. Countdown Badge Scaling */
