@@ -244,14 +244,9 @@ h1 {
   box-shadow: 0 4px 15px rgba(30, 123, 143, 0.3);
 }
 
-.prayer-item.next .prayer-time {
-  color: white;
-}
-
-.prayer-item.next .lang-nl {
-  color: rgba(255, 255, 255, 0.8);
-}
-
+.prayer-item.next .prayer-time,
+.prayer-item.next .lang-nl,
+.prayer-item.next .tomorrow,
 .prayer-item.next .lang-tr,
 .prayer-item.next .lang-ar {
   color: white;
@@ -265,14 +260,9 @@ h1 {
   animation: blink 1.5s ease-in-out infinite;
 }
 
-.prayer-item.current .prayer-time {
-  color: white;
-}
-
-.prayer-item.current .lang-nl {
-  color: rgba(255, 255, 255, 0.8);
-}
-
+.prayer-item.current .prayer-time ,
+.prayer-item.current .lang-nl,
+.prayer-item.current .tomorrow,
 .prayer-item.current .lang-tr,
 .prayer-item.current .lang-ar {
   color: white;
@@ -283,9 +273,6 @@ h1 {
   margin: -4px;
 }
 
-.prayer-item.current .tomorrow {
-  color: rgba(255, 255, 255, 0.8);
-}
 
 @keyframes blink {
   0%, 100% {
