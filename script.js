@@ -18,7 +18,9 @@ const SETTINGS = {
 // ===== STATE =====
 let prayerTimes = {};
 let prayerArray = [];
-const isTestMode = window.location.search.includes('test');
+const searchParams = new URLSearchParams(window.location.search);
+const isTestMode = searchParams.has('test');
+const currentDateOverride = parseCurrentDateOverride(searchParams.get('cd'));
 let testMinutes = 0;
 let lastDate = null;
 let sabahWillBeAdjusted = false;
@@ -63,10 +65,112 @@ function timeToMinutes(timeStr) {
  * @returns {number} Day of year (0-based index)
  */
 function getDayOfYear(date) {
-    const start = new Date(date.getFullYear(), 0, 1);
-    const diff = date - start;
+    // Use UTC calendar dates so DST changes do not shift the day index.
+    const start = Date.UTC(date.getFullYear(), 0, 1);
+    const current = Date.UTC(date.getFullYear(), date.getMonth(), date.getDate());
+    const diff = current - start;
     const oneDay = 1000 * 60 * 60 * 24;
     return Math.floor(diff / oneDay);
+}
+
+/**
+ * Parses the cd query parameter in YYYYMMDD format
+ * @param {string|null} value - Query parameter value
+ * @returns {Date|null} Parsed local date or null when absent/invalid
+ */
+function parseCurrentDateOverride(value) {
+    if (!value) {
+        return null;
+    }
+
+    const match = value.match(/^(\d{4})(\d{2})(\d{2})$/);
+    if (!match) {
+        console.warn('Invalid cd query parameter. Expected format YYYYMMDD:', value);
+        return null;
+    }
+
+    const year = Number(match[1]);
+    const month = Number(match[2]);
+    const day = Number(match[3]);
+    const parsedDate = new Date(year, month - 1, day);
+
+    if (
+        parsedDate.getFullYear() !== year ||
+        parsedDate.getMonth() !== month - 1 ||
+        parsedDate.getDate() !== day
+    ) {
+        console.warn('Invalid cd query parameter. Could not parse date:', value);
+        return null;
+    }
+
+    return parsedDate;
+}
+
+/**
+ * Returns the selected calendar day, falling back to the real current date
+ * @returns {Date} Selected day
+ */
+function getSelectedDate() {
+    if (currentDateOverride) {
+        return new Date(
+            currentDateOverride.getFullYear(),
+            currentDateOverride.getMonth(),
+            currentDateOverride.getDate()
+        );
+    }
+
+    const now = new Date();
+    return new Date(now.getFullYear(), now.getMonth(), now.getDate());
+}
+
+/**
+ * Returns the current time, optionally projected onto the selected calendar day
+ * @returns {Date} Current date/time
+ */
+function getCurrentDateTime() {
+    const now = new Date();
+
+    if (!currentDateOverride) {
+        return now;
+    }
+
+    const selectedDate = getSelectedDate();
+    selectedDate.setHours(now.getHours(), now.getMinutes(), now.getSeconds(), now.getMilliseconds());
+    return selectedDate;
+}
+
+/**
+ * Returns a copy of a date shifted by a number of calendar days
+ * @param {Date} date - Base date
+ * @param {number} dayOffset - Number of days to shift
+ * @returns {Date} Shifted date
+ */
+function shiftDate(date, dayOffset) {
+    const shiftedDate = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+    shiftedDate.setDate(shiftedDate.getDate() + dayOffset);
+    return shiftedDate;
+}
+
+/**
+ * Checks whether a date is in daylight saving time for the local timezone
+ * @param {Date} date - Date to check
+ * @returns {boolean} True when the date is in DST
+ */
+function isDaylightSavingTime(date) {
+    const januaryOffset = new Date(date.getFullYear(), 0, 1, 12, 0, 0, 0).getTimezoneOffset();
+    const julyOffset = new Date(date.getFullYear(), 6, 1, 12, 0, 0, 0).getTimezoneOffset();
+    const standardOffset = Math.max(januaryOffset, julyOffset);
+    const middayDate = new Date(date.getFullYear(), date.getMonth(), date.getDate(), 12, 0, 0, 0);
+    return middayDate.getTimezoneOffset() < standardOffset;
+}
+
+/**
+ * Checks whether a Hijri date string belongs to Ramadan
+ * @param {string|null} hijriDate - Hijri date string
+ * @returns {boolean} True when the date is in Ramadan
+ */
+function isRamadanDate(hijriDate) {
+    return Boolean(hijriDate && hijriDate.includes('Ramazan'));
 }
 
 /**
@@ -75,10 +179,9 @@ function getDayOfYear(date) {
  */
 function getTestTime() {
     if (!isTestMode)
-        return new Date();
+        return getCurrentDateTime();
 
-    const now = new Date().getTime();
-    let startOfDay = new Date(now - (now % 86400000));
+    const startOfDay = getSelectedDate();
     startOfDay.setMinutes(startOfDay.getMinutes() + testMinutes);
     return startOfDay;
 }
@@ -86,19 +189,25 @@ function getTestTime() {
 /**
  * Finds the minimum sunrise time in the week starting from a given day
  * @param {string[]} lines - Array of prayer data lines
- * @param {number} dayOfYear - Day of year (1-based index)
+ * @param {number} weekIndex - Any line index in the target Saturday-Friday week
+ * @param {number} referenceIndex - Line index that corresponds to referenceDate
+ * @param {Date} referenceDate - The day we are calculating Sabah for
+ * @param {Object} options - Calculation options
+ * @param {boolean} options.excludeRamadanDays - Skip Ramadan days for non-Ramadan Sabah calculation
  * @returns {string|null} Minimum sunrise time in format 'HH:MM'
  */
-function getMinimumSunriseOfTheWeek(lines, dayOfYear) {
+function getMinimumSunriseOfTheWeek(lines, weekIndex, referenceIndex = weekIndex, referenceDate = null, options = {}) {
+    const { excludeRamadanDays = false } = options;
     let minSunrise = null;
+    let fallbackSunrise = null;
+    let fallbackNonRamadanSunrise = null;
+    const referenceIsDST = referenceDate ? isDaylightSavingTime(referenceDate) : null;
 
     // Find the Saturday at or before the given day
-    let index = Math.min(dayOfYear, lines.length - 1);
+    let index = Math.min(weekIndex, lines.length - 1);
     while (index > 0) {
         const parts = lines[index].split(',');
         if (parts[0].endsWith("Cumartesi")) {
-            //previous Friday found, go one step forward to get Saturday
-            //index++;
             break;
         }
         index--;
@@ -108,14 +217,38 @@ function getMinimumSunriseOfTheWeek(lines, dayOfYear) {
     for (let i = 0; i < 7; i++) {
         if (index >= lines.length) break;
 
-        const gunes = lines[index].split(',')[3]; // Güneş time
+        const parts = lines[index].split(',');
+        const hijriDate = parts[1];
+        const gunes = parts[3]; // Güneş time
+        const gunesMinutes = timeToMinutes(gunes);
 
-        if (minSunrise === null || gunes < minSunrise) {
+        if (fallbackSunrise === null || gunesMinutes < timeToMinutes(fallbackSunrise)) {
+            fallbackSunrise = gunes;
+        }
+
+        if (excludeRamadanDays && isRamadanDate(hijriDate)) {
+            index++;
+            continue;
+        }
+
+        if (fallbackNonRamadanSunrise === null || gunesMinutes < timeToMinutes(fallbackNonRamadanSunrise)) {
+            fallbackNonRamadanSunrise = gunes;
+        }
+
+        if (referenceDate) {
+            const candidateDate = shiftDate(referenceDate, index - referenceIndex);
+            if (isDaylightSavingTime(candidateDate) !== referenceIsDST) {
+                index++;
+                continue;
+            }
+        }
+
+        if (minSunrise === null || gunesMinutes < timeToMinutes(minSunrise)) {
             minSunrise = gunes;
         }
         index++;
     }
-    return minSunrise;
+    return minSunrise || fallbackNonRamadanSunrise || fallbackSunrise;
 }
 
 /**
@@ -143,7 +276,8 @@ function calculateSabahMinutes(gunesH, gunesM) {
  */
 async function getPrayerTimes() {
     try {
-        const today = new Date();
+        const today = getSelectedDate();
+        const tomorrow = shiftDate(today, 1);
         let dayOfYear = getDayOfYear(today);
         const lines = prayerData.split('\n').filter(line => line.trim()); // Remove empty lines
 
@@ -157,7 +291,9 @@ async function getPrayerTimes() {
         }
 
         const [turkishDate, hijriDate, imsak, gunes, ogle, ikindi, aksam, yatsi] = lines[dataIndex].split(',');
-        const tomorrrow = lines[dataIndex + 1].split(',');
+        const tomorrrow = lines[dataIndex + 1] ? lines[dataIndex + 1].split(',') : null;
+        const tomorrowHijriDate = tomorrrow ? tomorrrow[1] : null;
+        const dstChangesTomorrow = tomorrrow && isDaylightSavingTime(today) !== isDaylightSavingTime(tomorrow);
 
         const dateStr = today.toLocaleDateString('nl-NL', {
             weekday: 'long', year: 'numeric', month: 'long', day: 'numeric'
@@ -168,19 +304,35 @@ async function getPrayerTimes() {
         let sabahMinutesTomorrow;
         sabahTimeTomorrow = null;
 
-        if (hijriDate.includes('Ramazan')) {
+        if (isRamadanDate(hijriDate)) {
             // Calculate Sabah in Ramadan: Imsak + offset minutes (20)
             sabahMinutes = timeToMinutes(imsak) + SETTINGS.SABAH_IN_RAMADAN_OFFSET_MINUTES;
-            const tomorrowHijriDate = tomorrrow[1];
-            if (tomorrowHijriDate.includes('Ramazan')) {
+            if (dstChangesTomorrow && tomorrrow) {
+                if (isRamadanDate(tomorrowHijriDate)) {
+                    sabahMinutesTomorrow = timeToMinutes(tomorrrow[2]) + SETTINGS.SABAH_IN_RAMADAN_OFFSET_MINUTES;
+                    imsakTimeTomorrow = tomorrrow[2];
+                }
+                else {
+                    const gunesMinutes = timeToMinutes(getMinimumSunriseOfTheWeek(lines, dataIndex + 1, dataIndex + 1, tomorrow, {
+                        excludeRamadanDays: true
+                    }));
+                    const gunesH = Math.floor(gunesMinutes / 60);
+                    const gunesM = gunesMinutes % 60;
+                    sabahMinutesTomorrow = calculateSabahMinutes(gunesH, gunesM);
+                }
+                sabahWillBeAdjusted = true;
+            }
+            else if (isRamadanDate(tomorrowHijriDate)) {
                 // Still in Ramadan tomorrow, no adjustment needed
                 sabahWillBeAdjusted = false;
                 sabahMinutesTomorrow = timeToMinutes(tomorrrow[2]) + SETTINGS.SABAH_IN_RAMADAN_OFFSET_MINUTES;
                 imsakTimeTomorrow = tomorrrow[2];
             }
-            else {
+            else if (tomorrrow) {
                 // Tomorrow is Ramadan ending, check adjustment
-                const gunesMinutes = timeToMinutes(getMinimumSunriseOfTheWeek(lines, dataIndex + 1));
+                const gunesMinutes = timeToMinutes(getMinimumSunriseOfTheWeek(lines, dataIndex + 1, dataIndex + 1, tomorrow, {
+                    excludeRamadanDays: true
+                }));
                 const gunesH = Math.floor(gunesMinutes / 60);
                 const gunesM = gunesMinutes % 60;
                 const sabahMinutesN = calculateSabahMinutes(gunesH, gunesM);
@@ -189,17 +341,39 @@ async function getPrayerTimes() {
                     sabahMinutesTomorrow = sabahMinutesN;
                 }
             }
+            else {
+                sabahWillBeAdjusted = false;
+            }
         }
         else {
-            const gunesMinutes = timeToMinutes(getMinimumSunriseOfTheWeek(lines, dataIndex));
+            const gunesMinutes = timeToMinutes(getMinimumSunriseOfTheWeek(lines, dataIndex, dataIndex, today, {
+                excludeRamadanDays: true
+            }));
             const gunesH = Math.floor(gunesMinutes / 60);
             const gunesM = gunesMinutes % 60;
             sabahMinutes = calculateSabahMinutes(gunesH, gunesM);
 
+            if (dstChangesTomorrow && tomorrrow) {
+                if (isRamadanDate(tomorrowHijriDate)) {
+                    sabahMinutesTomorrow = timeToMinutes(tomorrrow[2]) + SETTINGS.SABAH_IN_RAMADAN_OFFSET_MINUTES;
+                    imsakTimeTomorrow = tomorrrow[2];
+                }
+                else {
+                    const gunesNMinutes = timeToMinutes(getMinimumSunriseOfTheWeek(lines, dataIndex + 1, dataIndex + 1, tomorrow, {
+                        excludeRamadanDays: true
+                    }));
+                    const gunesNH = Math.floor(gunesNMinutes / 60);
+                    const gunesNM = gunesNMinutes % 60;
+                    sabahMinutesTomorrow = calculateSabahMinutes(gunesNH, gunesNM);
+                }
+                sabahWillBeAdjusted = true;
+            }
             // get the minimum sunrise of next week if today is Friday
-            if (turkishDate.endsWith(SETTINGS.CHECK_DAY)) {
+            else if (turkishDate.endsWith(SETTINGS.CHECK_DAY)) {
                 const nextWeekIndex = Math.min(dataIndex + 7, lines.length - 1);
-                const gunesNMinutes = timeToMinutes(getMinimumSunriseOfTheWeek(lines, nextWeekIndex));
+                const gunesNMinutes = timeToMinutes(getMinimumSunriseOfTheWeek(lines, nextWeekIndex, dataIndex + 1, tomorrow, {
+                    excludeRamadanDays: true
+                }));
                 if (gunesNMinutes > 0) {
                     const gunesNH = Math.floor(gunesNMinutes / 60);
                     const gunesNM = gunesNMinutes % 60;
@@ -213,7 +387,7 @@ async function getPrayerTimes() {
                     sabahWillBeAdjusted = false;
                 }
             }
-            else if (tomorrrow[1].includes('Ramazan')) {
+            else if (isRamadanDate(tomorrowHijriDate)) {
                 // Tomorrow is Ramadan starting, sabah will be adjusted
                 sabahWillBeAdjusted = true;
                 sabahMinutesTomorrow = timeToMinutes(tomorrrow[2]) + SETTINGS.SABAH_IN_RAMADAN_OFFSET_MINUTES;
@@ -406,9 +580,9 @@ if (isTestMode) {
 
 
 // Apply rotation based on URL parameters
-if (window.location.search.includes('l')) {
+if (searchParams.has('l')) {
     document.body.classList.add('rotate-left');
 }
-else if (window.location.search.includes('r')) {
+else if (searchParams.has('r')) {
     document.body.classList.add('rotate-right');
 }
