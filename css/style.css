@@ -3,6 +3,12 @@ html {
   font-size: 1em;
 }
 
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
 ::-moz-selection {
   background: #b3d4fc;
   text-shadow: none;
@@ -54,9 +60,14 @@ body {
   margin: 0;
 }
 
+body.night-mode {
+  background: linear-gradient(135deg, #f2b66d 0%, #d87930 38%, #8f3f1c 100%);
+}
+
 /* 1. Set the body as a full-screen canvas that swaps dimensions */
 body.rotate-left,
 body.rotate-right {
+  --tv-safe-inset: clamp(2rem, 7vh, 4.5rem);
   position: fixed;
   top: 0;
   left: 0;
@@ -72,6 +83,11 @@ body.rotate-right {
   background: #0a3d4a; /* Background color matches your gradient */
 }
 
+body.night-mode.rotate-left,
+body.night-mode.rotate-right {
+  background: #8f3f1c;
+}
+
 body.rotate-left {
   transform: rotate(-90deg) translate(-100%, 0);
 }
@@ -82,68 +98,96 @@ body.rotate-right {
 
 /* 2. Force the container to be tall and narrow */
 body[class*="rotate-"] .container {
-  /* This locks the card width so it doesn't stretch like Image 10 */
-  /*width: 480px !important;*/
-  /* This forces it to touch the top and bottom of the physical screen */
-  /*height: 98vh !important;*/
-  /*max-width: 95vh !important;*/
-
-  /* Use Flexbox to spread the content vertically */
+  width: calc(100% - var(--tv-safe-inset));
+  height: calc(100% - var(--tv-safe-inset));
+  max-width: none !important;
+  padding: clamp(0.35rem, 1vh, 0.8rem);
   display: flex;
   flex-direction: column;
   justify-content: center;
   box-sizing: border-box;
+  overflow: hidden;
 }
 
 /* 3. Make the prayer list expand to fill the tall white space */
 body[class*="rotate-"] .prayer-list {
   flex-grow: 1;
+  min-height: 0;
   display: flex;
   flex-direction: column;
-  /* This spreads the prayer rows out evenly to fill the tall card */
-  justify-content: space-evenly;
+  justify-content: space-between;
+  gap: clamp(0.25rem, 0.8vh, 0.5rem);
 }
 
 /* 4. Increase font scaling for the high-res rotated display */
 body[class*="rotate-"] #current-time {
-  font-size: clamp(3rem, 16vh, 15rem);
+  font-size: clamp(4.4rem, 15vh, 9.75rem);
+  line-height: 1;
 }
 
 body[class*="rotate-"] .prayer-time {
-  font-size: clamp(2.5rem, 17vh, 10rem);
+  font-size: clamp(4.8rem, 15.5vh, 10rem);
+  line-height: 1.05;
+  margin: 0;
 }
 
 /* 1. Header & Date Scaling */
 body[class*="rotate-"] #date {
-  font-size: clamp(1.2rem, 3vh, 1.8rem); /* Scale date based on height */
-  margin-bottom: 1rem;
+  font-size: clamp(1rem, 2.4vh, 1.5rem); /* Scale date based on height */
+  margin-bottom: clamp(0.3rem, 1vh, 0.7rem);
 }
 
 body[class*="rotate-"] h1 {
   font-size: clamp(1.5rem, 4vh, 2.5rem);
 }
 
+body[class*="rotate-"] #prayer-times {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+}
+
 /* 2. Prayer Name Scaling (Dutch, Turkish, Arabic) */
 body[class*="rotate-"] .lang-nl,
 body[class*="rotate-"] .tomorrow {
-  font-size: clamp(2.5rem, 2.5vh, 1.4rem);
+  font-size: clamp(1.45rem, 3.8vh, 2.35rem);
 }
 
 body[class*="rotate-"] .lang-tr,
 body[class*="rotate-"] .lang-ar {
-  font-size: clamp(2.5rem, 3.5vh, 2rem);
+  font-size: clamp(1.65rem, 4.4vh, 2.8rem);
 }
 
 /* 3. Countdown Badge Scaling */
 body[class*="rotate-"] .countdown-inline {
-  font-size: clamp(1rem, 3vh, 1.6rem);
-  padding: 0.1;
+  font-size: clamp(0.9rem, 2.4vh, 1.4rem);
+  padding: 0.1rem 0.25rem;
+}
+
+body[class*="rotate-"] .countdown-inline.soon {
+  font-size: clamp(1.2rem, 3.4vh, 2rem);
+  padding: 0.16rem 0.38rem;
 }
 
 /* 4. Row Height Scaling */
 body[class*="rotate-"] .prayer-item {
-  min-height: 10vh; /* Ensures each row takes up at least 10% of the screen height */
-  padding: 1rem 1.5rem;
+  flex: 1 1 auto;
+  min-height: 0;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  column-gap: clamp(0.35rem, 1vh, 0.8rem);
+  padding: clamp(0.3rem, 1vh, 0.7rem) clamp(0.65rem, 1.8vh, 1.2rem);
+}
+
+body[class*="rotate-"] .prayer-name-left {
+  justify-self: start;
+}
+
+body[class*="rotate-"] .prayer-time-wrapper {
+  justify-self: center;
+}
+
+body[class*="rotate-"] .prayer-name-right {
+  justify-self: end;
 }
 
 .container {
@@ -156,9 +200,21 @@ body[class*="rotate-"] .prayer-item {
   position: relative;
 }
 
+body.night-mode .container {
+  background: rgba(16, 20, 24, 0.98);
+  border-color: rgba(241, 176, 84, 0.4);
+  box-shadow: 0 18px 54px rgba(0, 0, 0, 0.46);
+}
+
 body.rotate-left .container,
 body.rotate-right .container {
   max-width: none !important;
+}
+
+body[class*="rotate-"] .logo {
+  top: 0.25rem;
+  right: 0.25rem;
+  height: clamp(1.6rem, 4vh, 2.8rem);
 }
 
 .logo {
@@ -190,6 +246,10 @@ h1 {
   font-size: 1.2rem;
 }
 
+body.night-mode #date {
+  color: #f5cf97;
+}
+
 #date p {
   margin: 0;
 }
@@ -204,16 +264,38 @@ h1 {
   letter-spacing: 0.05em;
 }
 
+body.night-mode #current-time {
+  color: #f3a541;
+}
+
 .countdown-inline {
   font-size: 1.4rem;
   font-weight: 600;
   color: rgba(255, 255, 255, 0.95);
-  padding: 0.1rem;
+  padding: 0.1rem 0.25rem;
   margin-top: 0.3rem;
   background: rgba(255, 255, 255, 0.25);
   border-radius: 5px;
   font-family: 'Roboto Mono', monospace;
   font-variant-numeric: tabular-nums;
+}
+
+.countdown-inline.soon {
+  color: #0a3d4a;
+  background: rgba(255, 255, 255, 0.92);
+  box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.3);
+  font-weight: 800;
+}
+
+body.night-mode .countdown-inline {
+  color: #1b1510;
+  background: rgba(246, 190, 112, 0.88);
+}
+
+body.night-mode .countdown-inline.soon {
+  color: #111820;
+  background: #ffd27d;
+  box-shadow: 0 0 0 3px rgba(255, 210, 125, 0.28);
 }
 
 .prayer-list {
@@ -229,19 +311,27 @@ h1 {
   padding: 0.2rem 1.2rem;
   background: #efefef;
   border-radius: 10px;
-  transition: transform 0.2s;
+  transition: background-color 0.2s, box-shadow 0.2s;
 }
 
-.prayer-item:hover {
-  transform: translateX(5px);
-  background: #e9ecef;
+body.night-mode .prayer-item {
+  background: #20262d;
 }
 
 .prayer-item.next {
-  background: linear-gradient(135deg, #1e7b8f 0%, #156270 100%);
+  background: linear-gradient(135deg, #2396ad 0%, #0f6071 100%);
   color: white;
-  /*transform: scale(1.05);*/
-  box-shadow: 0 4px 15px rgba(30, 123, 143, 0.3);
+  box-shadow:
+    inset 0 0 0 4px rgba(255, 255, 255, 0.75),
+    0 6px 22px rgba(15, 96, 113, 0.38);
+}
+
+body.night-mode .prayer-item.next {
+  background: linear-gradient(135deg, #f0a33b 0%, #c66a26 100%);
+  color: #151515;
+  box-shadow:
+    inset 0 0 0 4px rgba(255, 224, 176, 0.85),
+    0 6px 22px rgba(198, 106, 38, 0.44);
 }
 
 .prayer-item.next .prayer-time,
@@ -252,12 +342,33 @@ h1 {
   color: white;
 }
 
+body.night-mode .prayer-item.next .prayer-time,
+body.night-mode .prayer-item.next .lang-nl,
+body.night-mode .prayer-item.next .tomorrow,
+body.night-mode .prayer-item.next .lang-tr,
+body.night-mode .prayer-item.next .lang-ar {
+  color: #151515;
+}
+
+.prayer-item.next .prayer-time {
+  text-shadow: 0 2px 8px rgba(0, 0, 0, 0.22);
+}
+
+body.night-mode .prayer-item.next .prayer-time {
+  text-shadow: 0 2px 8px rgba(255, 238, 207, 0.35);
+}
+
 .prayer-item.current {
   background: linear-gradient(135deg, #28a745 0%, #218838 100%);
   color: white;
   transform: scale(1.05);
   box-shadow: 0 4px 15px rgba(40, 167, 69, 0.4);
   animation: blink 1.5s ease-in-out infinite;
+}
+
+body.night-mode .prayer-item.current {
+  background: linear-gradient(135deg, #b85f2a 0%, #843d1e 100%);
+  box-shadow: 0 4px 15px rgba(184, 95, 42, 0.45);
 }
 
 .prayer-item.current .prayer-time ,
@@ -288,6 +399,7 @@ h1 {
   flex-direction: column;
   gap: 0.2rem;
   text-align: left;
+  min-width: 0;
 }
 
 .prayer-name-right {
@@ -295,11 +407,16 @@ h1 {
   flex-direction: column;
   gap: 0.2rem;
   text-align: right;
+  min-width: 0;
 }
 
 .lang-nl {
   font-size: clamp(1.0rem, 3.5vw, 1.3rem);
   color: #6c757d;
+}
+
+body.night-mode .lang-nl {
+  color: #b6c0c8;
 }
 
 .lang-tr {
@@ -308,10 +425,18 @@ h1 {
   color: #495057;
 }
 
+body.night-mode .lang-tr {
+  color: #edf1f4;
+}
+
 .lang-ar {
   font-size: clamp(1.15rem, 4.2vw, 1.6rem);
   font-weight: 600;
   color: #495057;
+}
+
+body.night-mode .lang-ar {
+  color: #edf1f4;
 }
 
 .tomorrow {
@@ -320,10 +445,15 @@ h1 {
   color:#6c757d;
 }
 
+body.night-mode .tomorrow {
+  color: #b6c0c8;
+}
+
 .prayer-time-wrapper {
   display: flex;
   flex-direction: column;
   align-items: center;
+  min-width: 0;
 }
 
 .prayer-time {
@@ -331,6 +461,10 @@ h1 {
   color: #1e7b8f;
   font-size: clamp(2.0rem, 9vw, 6rem);
   margin: -10px;
+}
+
+body.night-mode .prayer-time {
+  color: #f3a541;
 }
 
 .loading, .error {
@@ -457,7 +591,7 @@ h1 {
 
 @media (orientation: portrait) {
   .container {
-    width: 100vw;      /* volledige schermbreedte */
+    width: calc(100vw - 20px);      /* volledige schermbreedte */
     margin: 10px;
     padding: clamp(1rem, 4vw, 2rem);
   }

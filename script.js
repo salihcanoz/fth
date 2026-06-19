@@ -3,6 +3,12 @@ const SETTINGS = {
     SABAH_OFFSET_MINUTES: 25,
     SABAH_IN_RAMADAN_OFFSET_MINUTES: 20,
     CURRENT_PRAYER_THRESHOLD_MINUTES: 3,
+    SOON_COUNTDOWN_THRESHOLD_MINUTES: 10,
+    CURRENT_PRAYER_THRESHOLD_EXTRA_MINUTES: {
+        'ogle': 1,
+        'ikindi': 1,
+        'yatsi': 1
+    },
     CHECK_DAY: 'Cuma',
     PRAYER_TRANSLATIONS: {
         'imsak': { nl: 'Dageraad', tr: 'İmsak', ar: 'الإمساك' },
@@ -26,6 +32,7 @@ let lastDate = null;
 let sabahWillBeAdjusted = false;
 let sabahTimeTomorrow = null;
 let imsakTimeTomorrow = null;
+let lastPrayerListHtml = null;
 
 // ===== DOM CACHE =====
 const domElements = {
@@ -57,6 +64,47 @@ function timeToMinutes(timeStr) {
         return 0;
     }
     return h * 60 + m;
+}
+
+/**
+ * Returns the current-prayer highlight window for a prayer.
+ * @param {string} prayerKey - Prayer key from prayerArray
+ * @returns {number} Threshold in minutes
+ */
+function getCurrentPrayerThresholdMinutes(prayerKey) {
+    return SETTINGS.CURRENT_PRAYER_THRESHOLD_MINUTES +
+        (SETTINGS.CURRENT_PRAYER_THRESHOLD_EXTRA_MINUTES[prayerKey] || 0);
+}
+
+/**
+ * Updates the prayer list DOM only when the rendered output changes.
+ * @param {string} html - Prayer list HTML
+ * @returns {void}
+ */
+function renderPrayerListHtml(html) {
+    if (html === lastPrayerListHtml) {
+        return;
+    }
+
+    domElements.prayerTimes.innerHTML = html;
+    lastPrayerListHtml = html;
+}
+
+/**
+ * Dims the display between Yatsı and the next İmsak.
+ * @param {number} currentMinutes - Current time in minutes since midnight
+ * @returns {void}
+ */
+function updateNightMode(currentMinutes) {
+    const imsak = prayerTimes.imsak ? timeToMinutes(prayerTimes.imsak.time) : null;
+    const yatsi = prayerTimes.yatsi ? timeToMinutes(prayerTimes.yatsi.time) : null;
+
+    if (imsak === null || yatsi === null) {
+        document.body.classList.remove('night-mode');
+        return;
+    }
+
+    document.body.classList.toggle('night-mode', currentMinutes >= yatsi || currentMinutes < imsak);
 }
 
 /**
@@ -421,10 +469,11 @@ async function getPrayerTimes() {
 
         // Cache prayer array for efficient lookups
         prayerArray = Object.entries(prayerTimes);
+        lastPrayerListHtml = null;
     }
     catch (error) {
         console.error('Error loading prayer times:', error);
-        domElements.prayerTimes.innerHTML = '<p class="error">Fout bij het laden van gebedstijden: ' + error.message + '</p>';
+        renderPrayerListHtml('<p class="error">Fout bij het laden van gebedstijden: ' + error.message + '</p>');
     }
 }
 
@@ -453,7 +502,7 @@ function getNextPrayer() {
 function updatePrayerList() {
     // Guard against empty prayer data
     if (!prayerArray || prayerArray.length === 0) {
-        domElements.prayerTimes.innerHTML = '<p class="info">Gebedstijden niet beschikbaar</p>';
+        renderPrayerListHtml('<p class="info">Gebedstijden niet beschikbaar</p>');
         return;
     }
 
@@ -466,7 +515,8 @@ function updatePrayerList() {
     for (const [key, prayer] of prayerArray) {
         const prayerMinutes = timeToMinutes(prayer.time);
         const minutesSincePrayer = currentMinutes - prayerMinutes;
-        if (minutesSincePrayer >= 0 && minutesSincePrayer < SETTINGS.CURRENT_PRAYER_THRESHOLD_MINUTES) {
+        const currentPrayerThresholdMinutes = getCurrentPrayerThresholdMinutes(key);
+        if (minutesSincePrayer >= 0 && minutesSincePrayer < currentPrayerThresholdMinutes) {
             isAnyCurrent = true;
             break;
         }
@@ -477,7 +527,8 @@ function updatePrayerList() {
         const prayerMinutes = timeToMinutes(prayer.time);
         const [hours, minutes] = prayer.time.split(':').map(Number);
         const minutesSincePrayer = currentMinutes - prayerMinutes;
-        const isCurrent = minutesSincePrayer >= 0 && minutesSincePrayer < SETTINGS.CURRENT_PRAYER_THRESHOLD_MINUTES;
+        const currentPrayerThresholdMinutes = getCurrentPrayerThresholdMinutes(key);
+        const isCurrent = minutesSincePrayer >= 0 && minutesSincePrayer < currentPrayerThresholdMinutes;
         const isNext = !isAnyCurrent && next && next.key === key;
 
         let countdown = '';
@@ -504,7 +555,8 @@ function updatePrayerList() {
                 timerText = hh > 0 ? `${hh}u ${mm}m` : `${mm}m`;
             }
 
-            countdown = `<span class="countdown-inline">${timerText}</span>`;
+            const countdownClass = totalMinutes < SETTINGS.SOON_COUNTDOWN_THRESHOLD_MINUTES ? ' soon' : '';
+            countdown = `<span class="countdown-inline${countdownClass}">${timerText}</span>`;
         }
 
         return { key, prayer, isCurrent, isNext, countdown };
@@ -533,7 +585,7 @@ function updatePrayerList() {
         `;
     }
     html += '</div>';
-    domElements.prayerTimes.innerHTML = html;
+    renderPrayerListHtml(html);
 }
 
 /**
@@ -561,6 +613,7 @@ function updateTime() {
     }
     lastDate = currentDate;
 
+    updateNightMode(now.getHours() * 60 + now.getMinutes());
     updatePrayerList();
 }
 
