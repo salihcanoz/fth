@@ -4,6 +4,7 @@ const SETTINGS = {
     SABAH_IN_RAMADAN_OFFSET_MINUTES: 20,
     CURRENT_PRAYER_THRESHOLD_MINUTES: 3,
     SOON_COUNTDOWN_THRESHOLD_MINUTES: 10,
+    NIGHT_MODE_AFTER_YATSI_MINUTES: 45,
     CURRENT_PRAYER_THRESHOLD_EXTRA_MINUTES: {
         'ogle': 1,
         'ikindi': 1,
@@ -13,7 +14,7 @@ const SETTINGS = {
     PRAYER_TRANSLATIONS: {
         'imsak': { nl: 'Dageraad', tr: 'İmsak', ar: 'الإمساك' },
         'sabah': { nl: 'Ochtend', tr: 'Sabah', ar: 'الفجر' },
-        'gunes': { nl: 'Zonsopgang', tr: 'Güneş', ar: 'الشروق' },
+        'gunes': { nl: 'Zonsopg.', tr: 'Güneş', ar: 'الشروق' },
         'ogle': { nl: 'Middag', tr: 'Öğle', ar: 'الظهر' },
         'ikindi': { nl: 'Namiddag', tr: 'İkindi', ar: 'العصر' },
         'aksam': { nl: 'Avond', tr: 'Akşam', ar: 'المغرب' },
@@ -91,7 +92,7 @@ function renderPrayerListHtml(html) {
 }
 
 /**
- * Dims the display between Yatsı and the next İmsak.
+ * Dims the display after the Yatsı grace period until the next İmsak.
  * @param {number} currentMinutes - Current time in minutes since midnight
  * @returns {void}
  */
@@ -104,7 +105,12 @@ function updateNightMode(currentMinutes) {
         return;
     }
 
-    document.body.classList.toggle('night-mode', currentMinutes >= yatsi || currentMinutes < imsak);
+    const nightStartMinutes = yatsi + SETTINGS.NIGHT_MODE_AFTER_YATSI_MINUTES;
+    const nightModeIsActive = nightStartMinutes >= 1440
+        ? currentMinutes >= nightStartMinutes - 1440 && currentMinutes < imsak
+        : currentMinutes >= nightStartMinutes || currentMinutes < imsak;
+
+    document.body.classList.toggle('night-mode', nightModeIsActive);
 }
 
 /**
