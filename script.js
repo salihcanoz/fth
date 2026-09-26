@@ -33,6 +33,7 @@ let sabahWillBeAdjusted = false;
 let sabahTimeTomorrow = null;
 let imsakTimeTomorrow = null;
 let lastPrayerListHtml = null;
+let wakeLockStatus = 'not requested'; // shown in ?debug mode
 
 // ===== DOM CACHE =====
 const domElements = {
@@ -254,9 +255,10 @@ function getMinimumSunriseOfTheWeek(lines, weekIndex, referenceIndex = weekIndex
     let fallbackNonRamadanSunrise = null;
     const referenceIsDST = referenceDate ? isDaylightSavingTime(referenceDate) : null;
 
-    // Find the Saturday at or before the given day
+    // Find the Saturday at or before the given day, never stepping back onto the header line
+    const firstDataIndex = lines[0].includes('Miladi Tarih') ? 1 : 0;
     let index = Math.min(weekIndex, lines.length - 1);
-    while (index > 0) {
+    while (index > firstDataIndex) {
         const parts = lines[index].split(',');
         if (parts[0].endsWith("Cumartesi")) {
             break;
@@ -271,6 +273,13 @@ function getMinimumSunriseOfTheWeek(lines, weekIndex, referenceIndex = weekIndex
         const parts = lines[index].split(',');
         const hijriDate = parts[1];
         const gunes = parts[3]; // Güneş time
+
+        // Skip malformed rows so they cannot produce a bogus minimum sunrise
+        if (!/^\d{1,2}:\d{2}$/.test(gunes || '')) {
+            console.warn('Skipping row with invalid Güneş time:', lines[index]);
+            index++;
+            continue;
+        }
         const gunesMinutes = timeToMinutes(gunes);
 
         if (fallbackSunrise === null || gunesMinutes < timeToMinutes(fallbackSunrise)) {
@@ -303,13 +312,22 @@ function getMinimumSunriseOfTheWeek(lines, weekIndex, referenceIndex = weekIndex
 }
 
 /**
+ * Formats minutes since midnight as 'HH:MM'
+ * @param {number} totalMinutes - Minutes since midnight
+ * @returns {string} Time in format 'HH:MM'
+ */
+function formatMinutes(totalMinutes) {
+    const h = Math.floor(totalMinutes / 60);
+    const m = totalMinutes % 60;
+    return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`;
+}
+
+/**
  * Calculates Sabah (dawn) prayer time minutes based on sunrise
- * @param {number} gunesH - Sunrise hour
- * @param {number} gunesM - Sunrise minute
+ * @param {number} gunesMinutes - Sunrise in minutes since midnight
  * @returns {number} Sabah time in minutes
  */
-function calculateSabahMinutes(gunesH, gunesM) {
-    const gunesMinutes = gunesH * 60 + gunesM;
+function calculateSabahMinutes(gunesMinutes) {
     let sabahMinutes = gunesMinutes - SETTINGS.SABAH_OFFSET_MINUTES;
     sabahMinutes = Math.floor(sabahMinutes / 15) * 15;
 
@@ -321,15 +339,39 @@ function calculateSabahMinutes(gunesH, gunesM) {
 }
 
 /**
- * Fetches and processes prayer times for the current day
- * Calculates Sabah time based on sunrise or Ramadan Imsak
- * @returns {Promise<void>}
+ * Calculates Sabah during Ramadan: Imsak + offset minutes
+ * @param {string} imsakTime - Imsak time in format 'HH:MM'
+ * @returns {number} Sabah time in minutes
  */
-async function getPrayerTimes() {
+function calculateRamadanSabahMinutes(imsakTime) {
+    return timeToMinutes(imsakTime) + SETTINGS.SABAH_IN_RAMADAN_OFFSET_MINUTES;
+}
+
+/**
+ * Calculates Sabah from the earliest non-Ramadan sunrise of a Saturday-Friday week
+ * @param {string[]} lines - Array of prayer data lines
+ * @param {number} weekIndex - Any line index in the target week
+ * @param {number} referenceIndex - Line index that corresponds to referenceDate
+ * @param {Date} referenceDate - The day we are calculating Sabah for
+ * @returns {number|null} Sabah time in minutes, or null when the week has no valid sunrise
+ */
+function calculateWeekSabahMinutes(lines, weekIndex, referenceIndex, referenceDate) {
+    const minSunrise = getMinimumSunriseOfTheWeek(lines, weekIndex, referenceIndex, referenceDate, {
+        excludeRamadanDays: true
+    });
+    return minSunrise ? calculateSabahMinutes(timeToMinutes(minSunrise)) : null;
+}
+
+/**
+ * Loads and processes prayer times for the current day from the bundled data
+ * Calculates Sabah time based on sunrise or Ramadan Imsak
+ * @returns {void}
+ */
+function getPrayerTimes() {
     try {
         const today = getSelectedDate();
-        const tomorrow = shiftDate(today, 1);
-        let dayOfYear = getDayOfYear(today);
+        const tomorrowDate = shiftDate(today, 1);
+        const dayOfYear = getDayOfYear(today);
         const lines = prayerData.split('\n').filter(line => line.trim()); // Remove empty lines
 
         // Skip the header line if present
@@ -342,122 +384,66 @@ async function getPrayerTimes() {
         }
 
         const [turkishDate, hijriDate, imsak, gunes, ogle, ikindi, aksam, yatsi] = lines[dataIndex].split(',');
-        const tomorrrow = lines[dataIndex + 1] ? lines[dataIndex + 1].split(',') : null;
-        const tomorrowHijriDate = tomorrrow ? tomorrrow[1] : null;
-        const dstChangesTomorrow = tomorrrow && isDaylightSavingTime(today) !== isDaylightSavingTime(tomorrow);
+        const tomorrow = lines[dataIndex + 1] ? lines[dataIndex + 1].split(',') : null;
+        const todayIsRamadan = isRamadanDate(hijriDate);
+        const tomorrowIsRamadan = isRamadanDate(tomorrow ? tomorrow[1] : null);
+        const dstChangesTomorrow = Boolean(tomorrow) && isDaylightSavingTime(today) !== isDaylightSavingTime(tomorrowDate);
 
         const dateStr = today.toLocaleDateString('nl-NL', {
             weekday: 'long', year: 'numeric', month: 'long', day: 'numeric'
         });
         domElements.date.innerHTML = `<p>${dateStr} - ${hijriDate}</p>`;
 
-        let sabahMinutes;
-        let sabahMinutesTomorrow;
-        sabahTimeTomorrow = null;
-
-        if (isRamadanDate(hijriDate)) {
-            // Calculate Sabah in Ramadan: Imsak + offset minutes (20)
-            sabahMinutes = timeToMinutes(imsak) + SETTINGS.SABAH_IN_RAMADAN_OFFSET_MINUTES;
-            if (dstChangesTomorrow && tomorrrow) {
-                if (isRamadanDate(tomorrowHijriDate)) {
-                    sabahMinutesTomorrow = timeToMinutes(tomorrrow[2]) + SETTINGS.SABAH_IN_RAMADAN_OFFSET_MINUTES;
-                    imsakTimeTomorrow = tomorrrow[2];
-                }
-                else {
-                    const gunesMinutes = timeToMinutes(getMinimumSunriseOfTheWeek(lines, dataIndex + 1, dataIndex + 1, tomorrow, {
-                        excludeRamadanDays: true
-                    }));
-                    const gunesH = Math.floor(gunesMinutes / 60);
-                    const gunesM = gunesMinutes % 60;
-                    sabahMinutesTomorrow = calculateSabahMinutes(gunesH, gunesM);
-                }
-                sabahWillBeAdjusted = true;
-            }
-            else if (isRamadanDate(tomorrowHijriDate)) {
-                // Still in Ramadan tomorrow, no adjustment needed
-                sabahWillBeAdjusted = false;
-                sabahMinutesTomorrow = timeToMinutes(tomorrrow[2]) + SETTINGS.SABAH_IN_RAMADAN_OFFSET_MINUTES;
-                imsakTimeTomorrow = tomorrrow[2];
-            }
-            else if (tomorrrow) {
-                // Tomorrow is Ramadan ending, check adjustment
-                const gunesMinutes = timeToMinutes(getMinimumSunriseOfTheWeek(lines, dataIndex + 1, dataIndex + 1, tomorrow, {
-                    excludeRamadanDays: true
-                }));
-                const gunesH = Math.floor(gunesMinutes / 60);
-                const gunesM = gunesMinutes % 60;
-                const sabahMinutesN = calculateSabahMinutes(gunesH, gunesM);
-                sabahWillBeAdjusted = sabahMinutes !== sabahMinutesN;
-                if (sabahWillBeAdjusted) {
-                    sabahMinutesTomorrow = sabahMinutesN;
-                }
-            }
-            else {
-                sabahWillBeAdjusted = false;
-            }
-        }
-        else {
-            const gunesMinutes = timeToMinutes(getMinimumSunriseOfTheWeek(lines, dataIndex, dataIndex, today, {
-                excludeRamadanDays: true
-            }));
-            const gunesH = Math.floor(gunesMinutes / 60);
-            const gunesM = gunesMinutes % 60;
-            sabahMinutes = calculateSabahMinutes(gunesH, gunesM);
-
-            if (dstChangesTomorrow && tomorrrow) {
-                if (isRamadanDate(tomorrowHijriDate)) {
-                    sabahMinutesTomorrow = timeToMinutes(tomorrrow[2]) + SETTINGS.SABAH_IN_RAMADAN_OFFSET_MINUTES;
-                    imsakTimeTomorrow = tomorrrow[2];
-                }
-                else {
-                    const gunesNMinutes = timeToMinutes(getMinimumSunriseOfTheWeek(lines, dataIndex + 1, dataIndex + 1, tomorrow, {
-                        excludeRamadanDays: true
-                    }));
-                    const gunesNH = Math.floor(gunesNMinutes / 60);
-                    const gunesNM = gunesNMinutes % 60;
-                    sabahMinutesTomorrow = calculateSabahMinutes(gunesNH, gunesNM);
-                }
-                sabahWillBeAdjusted = true;
-            }
-            // get the minimum sunrise of next week if today is Friday
-            else if (turkishDate.endsWith(SETTINGS.CHECK_DAY)) {
-                const nextWeekIndex = Math.min(dataIndex + 7, lines.length - 1);
-                const gunesNMinutes = timeToMinutes(getMinimumSunriseOfTheWeek(lines, nextWeekIndex, dataIndex + 1, tomorrow, {
-                    excludeRamadanDays: true
-                }));
-                if (gunesNMinutes > 0) {
-                    const gunesNH = Math.floor(gunesNMinutes / 60);
-                    const gunesNM = gunesNMinutes % 60;
-                    const sabahMinutesN = calculateSabahMinutes(gunesNH, gunesNM);
-                    sabahWillBeAdjusted = sabahMinutes !== sabahMinutesN;
-                    if (sabahWillBeAdjusted) {
-                        sabahMinutesTomorrow = sabahMinutesN;
-                    }
-                }
-                else {
-                    sabahWillBeAdjusted = false;
-                }
-            }
-            else if (isRamadanDate(tomorrowHijriDate)) {
-                // Tomorrow is Ramadan starting, sabah will be adjusted
-                sabahWillBeAdjusted = true;
-                sabahMinutesTomorrow = timeToMinutes(tomorrrow[2]) + SETTINGS.SABAH_IN_RAMADAN_OFFSET_MINUTES;
-                imsakTimeTomorrow = tomorrrow[2];
-            }
-            else {
-                sabahWillBeAdjusted = false;
-            }
+        const sabahMinutes = todayIsRamadan
+            ? calculateRamadanSabahMinutes(imsak)
+            : calculateWeekSabahMinutes(lines, dataIndex, dataIndex, today);
+        if (sabahMinutes === null) {
+            throw new Error(`No valid sunrise data to calculate Sabah for day ${dayOfYear}`);
         }
 
-        const sabahH = Math.floor(sabahMinutes / 60);
-        const sabahM = sabahMinutes % 60;
-        const sabahTime = `${sabahH.toString().padStart(2, '0')}:${sabahM.toString().padStart(2, '0')}`;
+        // Tomorrow's Ramadan Sabah is shown next to tomorrow's Imsak
+        const ramadanSabahTomorrow = () => {
+            imsakTimeTomorrow = tomorrow[2];
+            return calculateRamadanSabahMinutes(tomorrow[2]);
+        };
 
-        if (sabahMinutesTomorrow !== undefined) {
-            const sabahNH = Math.floor(sabahMinutesTomorrow / 60);
-            const sabahNM = sabahMinutesTomorrow % 60;
-            sabahTimeTomorrow = `${sabahNH.toString().padStart(2, '0')}:${sabahNM.toString().padStart(2, '0')}`;
+        let sabahMinutesTomorrow = null;
+        let sabahCandidateTomorrow = null; // shown only when it differs from today
+        sabahWillBeAdjusted = false;
+        imsakTimeTomorrow = null;
+
+        if (dstChangesTomorrow) {
+            sabahMinutesTomorrow = tomorrowIsRamadan
+                ? ramadanSabahTomorrow()
+                : calculateWeekSabahMinutes(lines, dataIndex + 1, dataIndex + 1, tomorrowDate);
+            sabahWillBeAdjusted = true;
         }
+        else if (todayIsRamadan && tomorrowIsRamadan) {
+            // Still in Ramadan tomorrow, no adjustment needed
+            sabahMinutesTomorrow = ramadanSabahTomorrow();
+        }
+        else if (todayIsRamadan && tomorrow) {
+            // Tomorrow is Ramadan ending, check adjustment
+            sabahCandidateTomorrow = calculateWeekSabahMinutes(lines, dataIndex + 1, dataIndex + 1, tomorrowDate);
+        }
+        else if (!todayIsRamadan && tomorrowIsRamadan) {
+            // Tomorrow is Ramadan starting, sabah will be adjusted (checked before Friday: Ramadan may start on a Saturday)
+            sabahMinutesTomorrow = ramadanSabahTomorrow();
+            sabahWillBeAdjusted = true;
+        }
+        else if (!todayIsRamadan && turkishDate.endsWith(SETTINGS.CHECK_DAY)) {
+            // Friday: get the minimum sunrise of next week
+            const nextWeekIndex = Math.min(dataIndex + 7, lines.length - 1);
+            sabahCandidateTomorrow = calculateWeekSabahMinutes(lines, nextWeekIndex, dataIndex + 1, tomorrowDate);
+        }
+
+        if (sabahCandidateTomorrow !== null && sabahCandidateTomorrow !== sabahMinutes) {
+            sabahMinutesTomorrow = sabahCandidateTomorrow;
+            sabahWillBeAdjusted = true;
+        }
+
+        const sabahTime = formatMinutes(sabahMinutes);
+        sabahTimeTomorrow = sabahMinutesTomorrow !== null ? formatMinutes(sabahMinutesTomorrow) : null;
 
         // Build prayer times object
         prayerTimes = {
@@ -513,25 +499,16 @@ function updatePrayerList() {
     const now = getTestTime();
     const currentMinutes = now.getHours() * 60 + now.getMinutes();
 
-    // First pass: determine if any prayer is current
-    let isAnyCurrent = false;
-    for (const [key, prayer] of prayerArray) {
-        const prayerMinutes = timeToMinutes(prayer.time);
-        const minutesSincePrayer = currentMinutes - prayerMinutes;
-        const currentPrayerThresholdMinutes = getCurrentPrayerThresholdMinutes(key);
-        if (minutesSincePrayer >= 0 && minutesSincePrayer < currentPrayerThresholdMinutes) {
-            isAnyCurrent = true;
-            break;
-        }
-    }
+    const isCurrentPrayer = (key, prayer) => {
+        const minutesSincePrayer = currentMinutes - timeToMinutes(prayer.time);
+        return minutesSincePrayer >= 0 && minutesSincePrayer < getCurrentPrayerThresholdMinutes(key);
+    };
+    const isAnyCurrent = prayerArray.some(([key, prayer]) => isCurrentPrayer(key, prayer));
 
     // Compute prayer display data (single pass)
     const prayerDisplayData = prayerArray.map(([key, prayer]) => {
-        const prayerMinutes = timeToMinutes(prayer.time);
         const [hours, minutes] = prayer.time.split(':').map(Number);
-        const minutesSincePrayer = currentMinutes - prayerMinutes;
-        const currentPrayerThresholdMinutes = getCurrentPrayerThresholdMinutes(key);
-        const isCurrent = minutesSincePrayer >= 0 && minutesSincePrayer < currentPrayerThresholdMinutes;
+        const isCurrent = isCurrentPrayer(key, prayer);
         const isNext = !isAnyCurrent && next && next.key === key;
 
         let countdown = '';
@@ -593,7 +570,7 @@ function updatePrayerList() {
 
 /**
  * Updates current time display and prayer list
- * Reloads page at midnight if online
+ * At midnight, reloads the page (served from cache when offline) or recalculates for the new day
  * @returns {void}
  */
 function updateTime() {
@@ -607,17 +584,57 @@ function updateTime() {
     // Check if the date has changed (midnight)
     const currentDate = now.getDate();
     if (lastDate !== null && lastDate !== currentDate) {
-        if (navigator.onLine) {
+        // Reloading is safe when the service worker controls the page (it serves the cache if offline)
+        if ((navigator.serviceWorker && navigator.serviceWorker.controller) || navigator.onLine) {
             window.location.reload();
         }
-        // else {
-        //     getPrayerTimes();
-        // }
+        else {
+            // Prayer data is bundled locally, so recalculate for the new day without reloading
+            getPrayerTimes();
+        }
     }
     lastDate = currentDate;
 
     updateNightMode(now.getHours() * 60 + now.getMinutes());
     updatePrayerList();
+}
+
+/**
+ * Runs updateTime right after each full second so the clock never drifts or skips a second
+ * @returns {void}
+ */
+function scheduleUpdateTime() {
+    setTimeout(() => {
+        updateTime();
+        scheduleUpdateTime();
+    }, 1000 - (Date.now() % 1000) + 10);
+}
+
+/**
+ * Keeps the screen from dimming or sleeping while the page is visible
+ * @returns {Promise<void>}
+ */
+async function requestWakeLock() {
+    if (!('wakeLock' in navigator)) {
+        wakeLockStatus = 'not supported';
+        return;
+    }
+    if (document.visibilityState !== 'visible') {
+        return;
+    }
+    try {
+        const wakeLock = await navigator.wakeLock.request('screen');
+        wakeLockStatus = 'active';
+        // The browser can also release the lock while the page stays visible (e.g. battery saver)
+        wakeLock.addEventListener('release', () => {
+            wakeLockStatus = 'released';
+            setTimeout(requestWakeLock, 1000);
+        });
+    }
+    catch (error) {
+        wakeLockStatus = 'denied (' + error.name + ')';
+        console.warn('Wake lock request failed:', error);
+    }
 }
 
 // Initial load
@@ -627,13 +644,24 @@ if (!domElements.prayerTimes || !domElements.date || !domElements.currentTime) {
 }
 getPrayerTimes();
 updateTime();
-setInterval(updateTime, 1000);
+scheduleUpdateTime();
+
+// The browser releases the wake lock when the page is hidden, so request it again when visible
+requestWakeLock();
+document.addEventListener('visibilitychange', requestWakeLock);
 if (isTestMode) {
     setInterval(() => {
         testMinutes++;
     }, 100);
 }
 
+
+// Cache the app for offline use (requires https or localhost)
+if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('sw.js').catch(error => {
+        console.warn('Service worker registration failed:', error);
+    });
+}
 
 // Apply rotation based on URL parameters
 if (searchParams.has('l')) {
