@@ -363,6 +363,37 @@ function calculateWeekSabahMinutes(lines, weekIndex, referenceIndex, referenceDa
 }
 
 /**
+ * Returns the data rows (without header) for a year, or an empty array when that year is not loaded
+ * @param {number} year - Calendar year
+ * @returns {string[]} Prayer data rows
+ */
+function getYearRows(year) {
+    const data = typeof prayerData !== 'undefined' ? prayerData[year] : undefined;
+    if (!data) {
+        return [];
+    }
+    return data.split('\n').filter(line => line.trim() && !line.includes('Miladi Tarih'));
+}
+
+/**
+ * Builds the prayer data lines around a date: a header line, the last week of the previous year,
+ * the whole year of the date and the first weeks of the next year, so week and "tomorrow"
+ * lookups keep working across the year boundary
+ * @param {Date} date - Selected date
+ * @returns {{lines: string[], dataIndex: number}} Lines and the index of the row for the date
+ */
+function getPrayerLines(date) {
+    const year = date.getFullYear();
+    const previousRows = getYearRows(year - 1).slice(-7);
+    const currentRows = getYearRows(year);
+    const nextRows = getYearRows(year + 1).slice(0, 14);
+
+    const lines = ['Miladi Tarih', ...previousRows, ...currentRows, ...nextRows];
+    const dataIndex = currentRows.length ? 1 + previousRows.length + getDayOfYear(date) : -1;
+    return { lines, dataIndex };
+}
+
+/**
  * Loads and processes prayer times for the current day from the bundled data
  * Calculates Sabah time based on sunrise or Ramadan Imsak
  * @returns {void}
@@ -372,15 +403,15 @@ function getPrayerTimes() {
         const today = getSelectedDate();
         const tomorrowDate = shiftDate(today, 1);
         const dayOfYear = getDayOfYear(today);
-        const lines = prayerData.split('\n').filter(line => line.trim()); // Remove empty lines
+        const { lines, dataIndex } = getPrayerLines(today);
 
-        // Skip the header line if present
-        const startIndex = lines[0].includes('Miladi Tarih') ? 1 : 0;
-        const dataIndex = dayOfYear + startIndex;
-
-        // Validate prayer data exists
+        // Validate prayer data exists and belongs to the selected date
         if (!lines[dataIndex]) {
-            throw new Error(`Prayer data not available for day ${dayOfYear}`);
+            throw new Error(`Prayer data not available for day ${dayOfYear} of ${today.getFullYear()}`);
+        }
+        const [rowDay, , rowYear] = lines[dataIndex].split(',')[0].split(' ');
+        if (Number(rowDay) !== today.getDate() || Number(rowYear) !== today.getFullYear()) {
+            throw new Error(`Prayer data row does not match ${today.toDateString()}: ${lines[dataIndex]}`);
         }
 
         const [turkishDate, hijriDate, imsak, gunes, ogle, ikindi, aksam, yatsi] = lines[dataIndex].split(',');

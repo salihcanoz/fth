@@ -1,4 +1,6 @@
-const prayerData = 
+// Prayer times for 2026, keyed by year so several years can be loaded side by side
+var prayerData = window.prayerData || {};
+prayerData[2026] = 
 `Miladi Tarih,Hicri Tarih,İmsak,Güneş,Öğle,İkindi,Akşam,Yatsı
 01 Ocak 2026 Perşembe,12 Recep 1447,06:42,08:41,12:47,14:24,16:43,18:29
 02 Ocak 2026 Cuma,13 Recep 1447,06:42,08:41,12:48,14:25,16:45,18:30

@@ -3,13 +3,14 @@
 // Online: files are fetched fresh (network-first) and the cache is refreshed.
 // Offline or slow network: files are served from the cache.
 
-const CACHE_NAME = 'fth-v1';
+const CACHE_NAME = 'fth-v2';
 const NETWORK_TIMEOUT_MS = 4000;
 const APP_FILES = [
     'i.html',
     'script.js',
     'debug.js',
-    'times.js',
+    'times-2026.js',
+    'times-2027.js',
     'css/style.css',
     'img/logo.png'
 ];
