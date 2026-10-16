@@ -2,12 +2,15 @@
 const SETTINGS = {
     SABAH_OFFSET_MINUTES: 20,
     SABAH_IN_RAMADAN_OFFSET_MINUTES: 20,
-    CURRENT_PRAYER_THRESHOLD_MINUTES: 3,
     SOON_COUNTDOWN_THRESHOLD_MINUTES: 10,
-    CURRENT_PRAYER_THRESHOLD_EXTRA_MINUTES: {
-        'ogle': 1,
-        'ikindi': 1,
-        'yatsi': 1
+    CURRENT_PRAYER_THRESHOLD_MINUTES: {
+        'imsak': 1,
+        'sabah': 2,        
+        'gunes': 1,
+        'ogle': 4,
+        'ikindi': 4,
+        'aksam': 3,
+        'yatsi': 4
     },
     CHECK_DAY: 'Cuma',
     PRAYER_TRANSLATIONS: {
@@ -73,8 +76,7 @@ function timeToMinutes(timeStr) {
  * @returns {number} Threshold in minutes
  */
 function getCurrentPrayerThresholdMinutes(prayerKey) {
-    return SETTINGS.CURRENT_PRAYER_THRESHOLD_MINUTES +
-        (SETTINGS.CURRENT_PRAYER_THRESHOLD_EXTRA_MINUTES[prayerKey] || 0);
+    return SETTINGS.CURRENT_PRAYER_THRESHOLD_MINUTES[prayerKey];
 }
 
 /**
@@ -92,7 +94,7 @@ function renderPrayerListHtml(html) {
 }
 
 /**
- * Dims the display after Aksam's current-prayer window until Güneş.
+ * Dims the display from Akşam until Güneş.
  * @param {number} currentMinutes - Current time in minutes since midnight
  * @returns {void}
  */
@@ -105,7 +107,7 @@ function updateNightMode(currentMinutes) {
         return;
     }
 
-    const nightStartMinutes = aksam + getCurrentPrayerThresholdMinutes('aksam');
+    const nightStartMinutes = aksam;
     const nightModeIsActive = currentMinutes >= nightStartMinutes || currentMinutes < gunes;
 
     document.body.classList.toggle('night-mode', nightModeIsActive);
